@@ -14,6 +14,8 @@
     "hardhat": "^2.26.1"
   },
   "dependencies": {
+    "@biomapper-sdk/core": "^0.4.0",
+    "@biomapper-sdk/libraries": "^0.4.0",
     "dotenv": "^17.2.1"
   }
 }
