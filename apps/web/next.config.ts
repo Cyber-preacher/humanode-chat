@@ -1,7 +1,9 @@
-﻿/** @type {import('next').NextConfig} */
-const nextConfig = {
+﻿import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
     reactStrictMode: false,
-    webpack: (config) => {
+    webpack: (config: any) => {
+        config.resolve = config.resolve || {};
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
             "pino-pretty": false,
@@ -11,4 +13,5 @@ const nextConfig = {
         return config;
     },
 };
-module.exports = nextConfig;
+
+export default nextConfig;

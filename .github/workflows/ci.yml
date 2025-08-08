@@ -16,8 +16,8 @@ jobs:
         with:
           version: 9
 
-      - name: Install deps (workspace)
-        run: pnpm install -w
+      - name: Install deps (all workspaces)
+        run: pnpm -r install --no-frozen-lockfile
 
       - name: Compile contracts
         run: pnpm run compile

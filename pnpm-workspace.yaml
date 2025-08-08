@@ -1,3 +1,2 @@
-onlyBuiltDependencies:
-  - keccak
-  - secp256k1
+﻿packages:
+  - apps/*
