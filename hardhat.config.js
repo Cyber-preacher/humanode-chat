@@ -1,25 +1,28 @@
 require("dotenv").config();
-require("@nomicfoundation/hardhat-ethers");
+require("@nomicfoundation/hardhat-toolbox");
 
-const { RPC, PRIVATE_KEY } = process.env;
+const HUMANODE_RPC = process.env.HUMANODE_RPC_URL;   // e.g. https://explorer-rpc-http.testnet5.stages.humanode.io
+const PRIVATE_KEY = process.env.PRIVATE_KEY;        // 0x...
 
-module.exports = {
-  solidity: {
-    version: "0.8.25",
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 200,
-      },
+/** @type import('hardhat/config').HardhatUserConfig */
+const config = {
+    solidity: {
+        version: "0.8.26",
+        settings: { optimizer: { enabled: true, runs: 200 } },
     },
-  },
-  networks: {
-    humanode: {
-      url: RPC,
-      chainId: 14853,
-      gasPrice: 1_000_000_000, // 1 gwei
-      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
-      timeout: 120000,
+    networks: {
+        // add localhost or hardhat if you want, they don’t need env
+        ...(HUMANODE_RPC && PRIVATE_KEY
+            ? {
+                humanode: {
+                    url: HUMANODE_RPC,
+                    chainId: 14853,
+                    accounts: [PRIVATE_KEY],
+                    gasPrice: 10_000n * 10n ** 9n, // 10k gwei (optional)
+                },
+            }
+            : {}),
     },
-  },
 };
+
+module.exports = config;
