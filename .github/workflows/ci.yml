@@ -1,15 +1,27 @@
-name: Contracts CI
+name: CI
 
 on: [push, pull_request]
 
 jobs:
-  compile:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npx hardhat compile
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install deps (workspace)
+        run: pnpm install -w
+
+      - name: Compile contracts
+        run: pnpm run compile
+
+      - name: Build web
+        working-directory: apps/web
+        run: pnpm run build
