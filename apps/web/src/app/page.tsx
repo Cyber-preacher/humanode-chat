@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { humanodeTestnet5 } from "@/lib/humanode";
 import { ProfileRegistryAbi } from "@/abi/ProfileRegistry";
+import NicknameForm from "@/components/NicknameForm"; // ← if yours is a named export, change to: { NicknameForm }
 
 // Contracts (env overrides allowed)
 const PROFILE_REGISTRY = process.env.NEXT_PUBLIC_PROFILE_REGISTRY as `0x${string}`;
@@ -61,7 +62,6 @@ export default function Home() {
         functionName: "getNickname",
         args: address ? [address as `0x${string}`] : undefined,
         chainId: humanodeTestnet5.id,
-        // Type-safe: no `any`
         query: { enabled: Boolean(address) } as const,
     });
 
@@ -86,7 +86,7 @@ export default function Home() {
         query: { enabled: Boolean(isOnHumanode && address && typeof genHead === "bigint") } as const,
     });
 
-    const isBiomapped = typeof mappingPtr === "bigint" ? mappingPtr > 0n : false;
+    const isBiomapped = typeof mappingPtr === "bigint" ? mappingPtr > BigInt(0) : false; // BigInt literal-safe for CI
     const hasNickname = typeof nickname === "string" && nickname.length > 0;
 
     const canSubmit = isOnHumanode && canTypeNick && isBiomapped && !isPending;
@@ -118,7 +118,7 @@ export default function Home() {
             )}
 
             {isConnected && isOnHumanode && (
-                <section style={{ border: "1px solid #e5e7eb", padding: 16, borderRadius: 12, display: "grid", gap: 8 }}>
+                <section style={{ border: "1px solid #e5e7eb", padding: 16, borderRadius: 12, display: "grid", gap: 12 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <Dot ok={isBiomapped} />
                         <strong>
@@ -143,26 +143,13 @@ export default function Home() {
 
                     {!hasNickname ? (
                         <>
-                            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                                <input
-                                    placeholder="Choose a nickname"
-                                    value={newNick}
-                                    onChange={(e) => setNewNick(e.target.value)}
-                                    style={{ padding: 8, flex: 1, border: "1px solid #d1d5db", borderRadius: 8 }}
-                                />
-                                <button
-                                    onClick={onSetNickname}
-                                    disabled={!canSubmit}
-                                    style={{
-                                        padding: "8px 12px",
-                                        borderRadius: 8,
-                                        opacity: canSubmit ? 1 : 0.6,
-                                        cursor: canSubmit ? "pointer" : "not-allowed",
-                                    }}
-                                >
-                                    {isPending ? "Setting…" : "Set nickname"}
-                                </button>
-                            </div>
+                            <NicknameForm
+                                newNick={newNick}
+                                setNewNick={setNewNick}
+                                onSubmit={onSetNickname}
+                                isSubmitting={isPending}
+                                canSubmit={canSubmit}
+                            />
                             <div style={{ fontSize: 12, opacity: 0.75 }}>
                                 {isFetchingNick ? "Refreshing nickname…" : !canTypeNick ? "Type a nickname to enable the button." : null}
                             </div>
