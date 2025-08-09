@@ -5,12 +5,23 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # Public (non-secret) build-time vars – set these as “Variables” in GitHub Actions
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_PROFILE_REGISTRY: ${{ vars.NEXT_PUBLIC_PROFILE_REGISTRY }}
+      NEXT_PUBLIC_CHAT_REGISTRY: ${{ vars.NEXT_PUBLIC_CHAT_REGISTRY }}
+      NEXT_PUBLIC_BIOMAPPER_LOG: ${{ vars.NEXT_PUBLIC_BIOMAPPER_LOG }}
+      NEXT_PUBLIC_CHAIN_ID: ${{ vars.NEXT_PUBLIC_CHAIN_ID }}
+      # Do NOT add PRIVATE_KEY here; only needed for deploy jobs and should be a secret.
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'pnpm'
 
       - uses: pnpm/action-setup@v4
         with:
