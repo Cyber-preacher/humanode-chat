@@ -30,6 +30,15 @@ jobs:
       - name: Compile contracts
         run: pnpm run compile
 
+      - name: Sync frontend addresses
+        run: node scripts/sync-addresses.js
+
+      # (optional) sanity log
+      - name: Show synced addresses
+        run: |
+          cat deployments/humanode-testnet5.json
+          cat apps/web/src/addresses/humanode-testnet5.ts
+
       - name: Build web
         working-directory: apps/web
         run: pnpm run build
