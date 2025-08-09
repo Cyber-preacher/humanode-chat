@@ -1,51 +1,36 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
-import {IBiomapperLogRead} from "@biomapper-sdk/core/IBiomapperLogRead.sol";
-import {BiomapperLogLib}   from "@biomapper-sdk/libraries/BiomapperLogLib.sol";
+import "@biomapper-sdk/libraries/BiomapperLogLib.sol";
 
+/// @title ProfileRegistry
+/// @notice Minimal profile registry gated by Humanode Biomapper
 contract ProfileRegistry {
-    /// Humanode Testnet-5 BiomapperLog
+    /// @notice Humanode Testnet-5 Biomapper Log
     IBiomapperLogRead public constant BIOMAPPER_LOG =
         IBiomapperLogRead(0x3f2B3E471b207475519989369d5E4F2cAbd0A39F);
 
-    mapping(address => string) public nickname;
-    mapping(bytes32 => bool)  private taken;   // lowercase nick → reserved
+    mapping(address => string) private _nick;
 
-    event NicknameSet(address indexed user, string nick);
+    event NicknameUpdated(address indexed user, string nickname);
 
-    modifier onlyBiomapped() {
+    /// @notice True if `who` is biomapped in the latest generation
+    function biomapped(address who) external view returns (bool) {
+        return BiomapperLogLib.isUniqueInLastGeneration(BIOMAPPER_LOG, who);
+    }
+
+    /// @notice Read nickname for `who`
+    function getNickname(address who) external view returns (string memory) {
+        return _nick[who];
+    }
+
+    /// @notice Set your nickname (allowed only for biomapped users)
+    function setNickname(string calldata nickname) external {
         require(
-            BiomapperLogLib.isUniqueInLastGeneration(
-                BIOMAPPER_LOG,
-                msg.sender
-            ),
-            "NotBiomapped"
+            BiomapperLogLib.isUniqueInLastGeneration(BIOMAPPER_LOG, msg.sender),
+            "NOT_BIOMAPPED"
         );
-        _;
-    }
-
-    function setNickname(string calldata nick) external onlyBiomapped {
-        bytes32 key = keccak256(bytes(_lower(nick)));
-        require(!taken[key], "NickTaken");
-
-        // release previous nick
-        if (bytes(nickname[msg.sender]).length != 0) {
-            taken[keccak256(bytes(_lower(nickname[msg.sender])))] = false;
-        }
-
-        taken[key]           = true;
-        nickname[msg.sender] = nick;
-        emit NicknameSet(msg.sender, nick);
-    }
-
-    // lower-case helper
-    function _lower(string memory s) private pure returns (string memory) {
-        bytes memory b = bytes(s);
-        for (uint i; i < b.length; ++i) {
-            uint8 c = uint8(b[i]);
-            if (c >= 65 && c <= 90) b[i] = bytes1(c + 32);
-        }
-        return string(b);
+        _nick[msg.sender] = nickname;
+        emit NicknameUpdated(msg.sender, nickname);
     }
 }

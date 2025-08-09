@@ -1,40 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.26;
 
-import {IBiomapperLogRead} from "@biomapper-sdk/core/IBiomapperLogRead.sol";
-import {BiomapperLogLib}   from "@biomapper-sdk/libraries/BiomapperLogLib.sol";
+import "@biomapper-sdk/libraries/BiomapperLogLib.sol";
 
 contract ChatRegistry {
-    enum RoomType { PUBLIC, PRIVATE, DM }
-    struct Room { RoomType t; address owner; }
-
+    // Humanode Testnet-5 Biomapper Log
     IBiomapperLogRead public constant BIOMAPPER_LOG =
         IBiomapperLogRead(0x3f2B3E471b207475519989369d5E4F2cAbd0A39F);
 
-    uint256 public nextRoomId;
-    mapping(uint256 => Room)                     public rooms;
-    mapping(uint256 => mapping(address => bool)) public isMember;
+    error NotBiomapped();
+    event ChatCreated(address indexed a, address indexed b);
 
-    event RoomCreated(uint256 indexed id, RoomType t, address indexed owner);
-    event MemberJoined(uint256 indexed id, address indexed member);
-
-    modifier onlyBiomapped() {
-        require(
-            BiomapperLogLib.isUniqueInLastGeneration(
-                BIOMAPPER_LOG,
-                msg.sender
-            ),
-            "NotBiomapped"
-        );
-        _;
-    }
-
-    function createRoom(RoomType t) external onlyBiomapped returns (uint256 id) {
-        id = ++nextRoomId;
-        rooms[id] = Room({ t: t, owner: msg.sender });
-        isMember[id][msg.sender] = true;
-
-        emit RoomCreated(id, t, msg.sender);
-        emit MemberJoined(id, msg.sender);
+    /// Minimal sample: open a DM only if both are biomapped
+    function openDM(address other) external {
+        bool okA = BiomapperLogLib.isUniqueInLastGeneration(BIOMAPPER_LOG, msg.sender);
+        bool okB = BiomapperLogLib.isUniqueInLastGeneration(BIOMAPPER_LOG, other);
+        if (!(okA && okB)) revert NotBiomapped();
+        emit ChatCreated(msg.sender, other);
     }
 }

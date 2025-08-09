@@ -1,0 +1,6 @@
+﻿{
+  "network": "humanode-testnet-5",
+  "chainId": 14853,
+  "profileRegistry": "0xf51171525F4e5aa3eCe33124aB5DA997A73A008A",
+  "chatRegistry": "0x2Ce244cC4DE22d5e0eaa23Af4FE9d7605506382A"
+}
