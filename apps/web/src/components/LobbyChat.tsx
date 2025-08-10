@@ -1,20 +1,16 @@
-// apps/web/src/components/LobbyChat.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { getSupabaseBrowser } from "@/lib/supabase/client";
 
-type MessageRow = {
+type Message = {
   id: string;
-  chat_id: string;
   sender_address: string;
   body: string;
   created_at: string;
 };
 
-<<<<<<< HEAD
-=======
 type LobbyListResponse =
   | { ok: true; messages: Message[] }
   | { ok: false; error: string };
@@ -23,135 +19,96 @@ type LobbyPostResponse =
   | { ok: true; message: Message }
   | { ok: false; error: string };
 
-function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return String(err);
-  }
-}
-
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
 export default function LobbyChat() {
   const { address, isConnected } = useAccount();
   const supa = useMemo(() => getSupabaseBrowser(), []);
-  const [messages, setMessages] = useState<MessageRow[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-<<<<<<< HEAD
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  // Realtime subscription + lobby id
   const subRef = useRef<ReturnType<typeof supa.channel> | null>(null);
   const [lobbyId, setLobbyId] = useState<string | null>(null);
 
-  // 1) Find lobby chat_id (browser can read it via RLS)
-  async function fetchLobbyId() {
-    const { data, error } = await supa
-      .from("chats")
-      .select("id")
-      .eq("slug", "lobby")
-      .single();
-    if (error || !data) throw error || new Error("Lobby not found");
-    setLobbyId(data.id);
-    return data.id;
-  }
-
-  // 2) Load recent messages (server route or direct supabase)
-  async function loadInitial(lobby: string) {
-    // Direct query with anon key (RLS limits you to lobby)
-    const { data, error } = await supa
-      .from("messages")
-      .select("id, chat_id, sender_address, body, created_at")
-      .eq("chat_id", lobby)
-      .order("created_at", { ascending: true })
-      .limit(100);
-    if (error) throw error;
-    setMessages(data ?? []);
-  }
-
-  // 3) Subscribe to realtime inserts
-  function subscribe(lobby: string) {
-    // Clean old sub
-    if (subRef.current) supa.removeChannel(subRef.current);
-
-    const channel = supa
-      .channel("lobby-messages")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `chat_id=eq.${lobby}`,
-        },
-        (payload) => {
-          const row = payload.new as MessageRow;
-          setMessages((prev) => [...prev, row]);
-        }
-      )
-      .subscribe();
-    subRef.current = channel;
-=======
-  const [lastError, setLastError] = useState<string | null>(null);
-  const pollRef = useRef<number | null>(null);
-
-  async function load(): Promise<void> {
+  async function load() {
     try {
       const res = await fetch("/api/lobby/messages?limit=100", { cache: "no-store" });
-      const json: LobbyListResponse = await res.json();
-      if (json.ok) {
-        setMessages(json.messages);
+      const json = (await res.json()) as unknown;
+      const data = json as LobbyListResponse;
+
+      if ("ok" in data && data.ok) {
+        setMessages(data.messages);
         setLastError(null);
       } else {
-        setLastError(json.error || "Failed to fetch messages");
+        const err = ("error" in (data as { error?: string }) && (data as unknown as { error?: string }).error) || "Failed to load";
+        setLastError(String(err));
       }
-    } catch (err: unknown) {
-      setLastError(getErrorMessage(err));
+    } catch (e) {
+      setLastError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
   }
 
   useEffect(() => {
-    let cancelled = false;
+    let mounted = true;
+    load();
 
-    (async () => {
-      try {
-        const id = await fetchLobbyId();
-        if (cancelled) return;
-        await loadInitial(id);
-        if (cancelled) return;
-        subscribe(id);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    async function setupRealtime() {
+      const { data, error } = await supa
+        .from("chats")
+        .select("id")
+        .eq("slug", "lobby")
+        .single();
+
+      if (error || !data?.id || !mounted) return;
+      setLobbyId(data.id);
+
+      const channel = supa
+        .channel("lobby-messages")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `chat_id=eq.${data.id}` },
+          (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            const msg: Message = {
+              id: String(row.id ?? ""),
+              sender_address: String(row.sender_address ?? ""),
+              body: String(row.body ?? ""),
+              created_at: String(row.created_at ?? new Date().toISOString()),
+            };
+            setMessages((prev) => [...prev, msg]);
+          }
+        )
+        .subscribe();
+
+      subRef.current = channel;
+    }
+
+    setupRealtime();
 
     return () => {
-      cancelled = true;
-      if (subRef.current) supa.removeChannel(subRef.current);
+      mounted = false;
+      const ch = subRef.current;
+      if (ch) {
+        supa.removeChannel(ch);
+        subRef.current = null;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [supa]);
 
-  async function send(): Promise<void> {
+  async function send() {
     const text = body.trim();
     if (!isConnected || !address || text.length === 0) return;
 
     setSending(true);
-<<<<<<< HEAD
-    const optimistic: MessageRow = {
-=======
     setLastError(null);
 
     const optimistic: Message = {
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
       id: `tmp-${Date.now()}`,
-      chat_id: lobbyId ?? "",
-      sender_address: address,
+      sender_address: address.toLowerCase(),
       body: text,
       created_at: new Date().toISOString(),
     };
@@ -164,124 +121,77 @@ export default function LobbyChat() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ senderAddress: address, body: text }),
       });
-<<<<<<< HEAD
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || "Failed");
-      // Realtime will append the canonical row; remove the optimistic
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-    } catch (e: any) {
-      // rollback on error
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setBody(text);
-      alert(`Send failed: ${e.message || e}`);
-=======
-      const json: LobbyPostResponse = await res.json();
-      if (!json.ok) {
-        throw new Error(json.error || "Failed to send message");
+      const json = (await res.json()) as unknown;
+      const data = json as LobbyPostResponse;
+
+      if (!("ok" in data) || !data.ok) {
+        const err = ("error" in (data as { error?: string }) && (data as unknown as { error?: string }).error) || "Failed";
+        throw new Error(String(err));
       }
-      // Replace optimistic list with canonical
+
+      // Refresh to replace the optimistic row with canonical
       await load();
-    } catch (err: unknown) {
-      // rollback
+    } catch (e) {
+      // rollback optimistic message and show error
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setBody(text);
-      setLastError(getErrorMessage(err));
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
+      setLastError(e instanceof Error ? e.message : String(e));
     } finally {
       setSending(false);
     }
   }
 
+  // simple dark styles
+  const border = "1px solid #2d2f36";
+  const bgCard = "#0f1115";
+  const bgMsg = "#161a22";
+  const textMuted = "#a0a3ad";
+
   return (
     <section
       style={{
-        border: "1px solid #e5e7eb",
+        border,
         padding: 16,
         borderRadius: 12,
         marginTop: 16,
-<<<<<<< HEAD
-        background: "#0b0f19", // darkened
-        color: "#e6e9ef",
-      }}
-    >
-      <h3 style={{ marginBottom: 8 }}>Lobby (public)</h3>
-=======
-        background: "#0b1220",
+        background: bgCard,
         color: "#e5e7eb",
       }}
     >
-      <h3 style={{ marginTop: 0, color: "#f0f4ff" }}>Lobby (public)</h3>
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
-
-      {loading ? (
-        <p style={{ opacity: 0.8 }}>Loading…</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gap: 8,
-            maxHeight: 360,
-            overflowY: "auto",
-            paddingRight: 8,
-<<<<<<< HEAD
-            background: "#0f1629",
-            borderRadius: 8,
-            border: "1px solid #1f2a44",
-          }}
-        >
-          {messages.length === 0 ? (
-            <p style={{ opacity: 0.75, padding: 8 }}>No messages yet. Say hi 👋</p>
-=======
-          }}
-        >
-          {messages.length === 0 ? (
-            <p style={{ opacity: 0.8 }}>No messages yet. Say hi 👋</p>
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
-          ) : (
-            messages.map((m) => (
-              <div
-                key={m.id}
-                style={{
-<<<<<<< HEAD
-                  padding: 10,
-                  background: "#111a2e",
-                  borderRadius: 8,
-                  border: "1px solid #22304e",
-                }}
-              >
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>
-=======
-                  padding: 8,
-                  background: "#101826",
-                  borderRadius: 8,
-                  border: "1px solid #1f2a44",
-                }}
-              >
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
-                  {m.sender_address.slice(0, 6)}…{m.sender_address.slice(-4)} •{" "}
-                  {new Date(m.created_at).toLocaleTimeString()}
-                </div>
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{m.body}</div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+      <h3 style={{ marginTop: 0, marginBottom: 12 }}>Lobby (public)</h3>
 
       {lastError && (
         <div
           style={{
-            marginTop: 8,
-            fontSize: 12,
             background: "#3b0d0d",
-            color: "#ffd7d7",
-            padding: "6px 8px",
+            border: "1px solid #6b1b1b",
+            padding: 8,
             borderRadius: 8,
-            border: "1px solid #5a1515",
+            marginBottom: 8,
           }}
         >
-          {lastError}
+          <strong>Error:</strong> {lastError}
+        </div>
+      )}
+
+      {loading ? (
+        <p style={{ color: textMuted }}>Loading…</p>
+      ) : (
+        <div style={{ display: "grid", gap: 8, maxHeight: 360, overflowY: "auto", paddingRight: 8 }}>
+          {messages.length === 0 ? (
+            <p style={{ color: textMuted }}>No messages yet. Say hi 👋</p>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} style={{ padding: 8, background: bgMsg, borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: textMuted, marginBottom: 4 }}>
+                  {m.sender_address.slice(0, 6)}…{m.sender_address.slice(-4)} •{" "}
+                  {new Date(m.created_at).toLocaleTimeString()}
+                  {m.id.startsWith("tmp-") ? " • sending…" : ""}
+                </div>
+                <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.body}</div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
@@ -294,45 +204,33 @@ export default function LobbyChat() {
           style={{
             padding: 10,
             flex: 1,
-<<<<<<< HEAD
-            border: "1px solid #2a3b61",
-            borderRadius: 8,
-            background: "#0f1629",
-            color: "#e6e9ef",
-=======
-            border: "1px solid #334155",
-            borderRadius: 8,
-            background: "#0f172a",
+            border: "1px solid #3a3d45",
+            background: "#0b0d12",
             color: "#e5e7eb",
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
+            borderRadius: 8,
           }}
         />
         <button
           onClick={send}
           disabled={!isConnected || sending || body.trim().length === 0}
           style={{
-<<<<<<< HEAD
             padding: "10px 14px",
             borderRadius: 8,
-            border: "1px solid #2a3b61",
-            background: "#1b2540",
-            color: "#e6e9ef",
-            opacity: !isConnected || body.trim().length === 0 ? 0.6 : 1,
-            cursor: !isConnected || body.trim().length === 0 ? "not-allowed" : "pointer",
-=======
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "#2563eb",
-            color: "white",
-            opacity: !isConnected || sending || body.trim().length === 0 ? 0.6 : 1,
+            background: sending || body.trim().length === 0 ? "#2a2e37" : "#2563eb",
+            color: "#fff",
+            border: "none",
             cursor:
               !isConnected || sending || body.trim().length === 0 ? "not-allowed" : "pointer",
-            border: "none",
->>>>>>> f90dd73 (fix(ci): replace 'any' with 'unknown' in LobbyChat and handle errors safely)
           }}
         >
           {sending ? "Sending..." : "Send"}
         </button>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 12, color: textMuted }}>
+        {isConnected
+          ? `Connected as ${address?.slice(0, 6)}…${address?.slice(-4)}`
+          : "Connect wallet to participate."}
       </div>
     </section>
   );
