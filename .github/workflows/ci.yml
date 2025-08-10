@@ -1,6 +1,12 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -9,36 +15,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1) Install pnpm first so setup-node's cache can find it
+      # Install pnpm first so setup-node can cache it
       - uses: pnpm/action-setup@v4
         with:
           version: 9
           run_install: false
 
-      # 2) Then setup Node and enable pnpm cache
+      # Node with pnpm cache
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      # 3) Install deps for all workspaces
+      # Install deps for all workspaces
       - name: Install deps (all workspaces)
         run: pnpm -r install --no-frozen-lockfile
 
-      # 4) Compile and build
+      # Contracts: compile + test
       - name: Compile contracts
         run: pnpm run compile
 
-      - name: Sync frontend addresses
-        run: node scripts/sync-addresses.js
+      - name: Test contracts
+        run: pnpm run test
 
-      # (optional) sanity log
-      - name: Show synced addresses
-        run: |
-          cat deployments/humanode-testnet5.json
-          cat apps/web/src/addresses/humanode-testnet5.ts
-
+      # Web: typecheck+lint happen inside next build already for Next 15
       - name: Build web
         working-directory: apps/web
         run: pnpm run build

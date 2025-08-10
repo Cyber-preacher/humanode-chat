@@ -1,0 +1,30 @@
+# .github/ISSUE\_TEMPLATE/feature\_request.md
+
+```markdown
+name: Feature request
+description: Propose an enhancement or new capability
+labels: enhancement
+
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      placeholder: What problem are you trying to solve?
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: How would you like it to work?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: input
+    id: scope
+    attributes:
+      label: Affected areas
+      placeholder: contracts / web / api / CI
+```

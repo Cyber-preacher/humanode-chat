@@ -1,0 +1,46 @@
+# .github/ISSUE\_TEMPLATE/bug\_report.md
+
+```markdown
+name: Bug report
+description: Report a reproducible problem with Humanode Chat
+labels: bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill this out!
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node version, pnpm version, browser
+      placeholder: Windows 11, Node 20.19, pnpm 9.12, Chrome 127
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen?
+      placeholder: Tell us what you see and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Clone repo
+        2. pnpm -r install
+        3. pnpm --filter web dev
+        4. Visit /lobby
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste logs or attach screenshots
+      render: shell
+```
+
+---

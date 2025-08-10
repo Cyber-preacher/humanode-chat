@@ -10,6 +10,23 @@ type Message = {
   created_at: string;
 };
 
+type GetResp =
+  | { ok: true; messages: Message[] }
+  | { ok: false; error: string };
+
+type PostResp =
+  | { ok: true; message: Message }
+  | { ok: false; error: string };
+
+function errMsg(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  try {
+    return String(e);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 export default function LobbyChat() {
   const { address, isConnected } = useAccount();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -21,16 +38,16 @@ export default function LobbyChat() {
   async function load() {
     try {
       const res = await fetch("/api/lobby/messages?limit=100", { cache: "no-store" });
-      const json: { ok: boolean; messages?: Message[] } = await res.json();
-      if (json.ok && Array.isArray(json.messages)) setMessages(json.messages);
+      const json = (await res.json()) as GetResp;
+      if (json.ok) setMessages(json.messages);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
-    pollRef.current = window.setInterval(load, 5000) as unknown as number;
+    void load();
+    pollRef.current = window.setInterval(() => void load(), 5000) as unknown as number;
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
@@ -56,67 +73,71 @@ export default function LobbyChat() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ senderAddress: address, body: text }),
       });
-      const json: { ok: boolean; error?: string } = await res.json();
+      const json = (await res.json()) as PostResp;
       if (!json.ok) throw new Error(json.error || "Failed");
       await load(); // replace optimistic item with canonical row
-    } catch (e) {
+    } catch (e: unknown) {
       // rollback on error
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setBody(text);
-      alert(`Send failed: ${e instanceof Error ? e.message : String(e)}`);
+      alert(`Send failed: ${errMsg(e)}`);
     } finally {
       setSending(false);
     }
   }
 
+  const cardStyle: React.CSSProperties = {
+    border: "1px solid #e5e7eb",
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    background: "var(--card-bg, #fff)",
+    color: "var(--card-fg, #111827)",
+  };
+
+  const msgStyle: React.CSSProperties = {
+    padding: 8,
+    background: "var(--bubble-bg, #f9fafb)",
+    borderRadius: 8,
+  };
+
   return (
-    <section
-      style={{
-        border: "1px solid #e5e7eb",
-        padding: 16,
-        borderRadius: 12,
-        marginTop: 16,
-        background: "#0b1220",
-        color: "#e5e7eb",
-      }}
-    >
-      <h3 style={{ marginBottom: 8 }}>Lobby (public)</h3>
+    <section style={cardStyle}>
+      <style>{`
+        :root {
+          --card-bg: #ffffff;
+          --card-fg: #111827;
+          --bubble-bg: #f9fafb;
+          --muted: #6b7280;
+          --border: #e5e7eb;
+        }
+        @media (prefers-color-scheme: dark) {
+          :root {
+            --card-bg: #0f172a;
+            --card-fg: #e5e7eb;
+            --bubble-bg: #111827;
+            --muted: #9ca3af;
+            --border: #334155;
+          }
+        }
+      `}</style>
+
+      <h3 style={{ marginTop: 0 }}>Lobby (public)</h3>
 
       {loading ? (
         <p>Loading…</p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gap: 8,
-            maxHeight: 360,
-            overflowY: "auto",
-            paddingRight: 8,
-            background: "#0f172a",
-            borderRadius: 8,
-            padding: 8,
-          }}
-        >
+        <div style={{ display: "grid", gap: 8, maxHeight: 360, overflowY: "auto", paddingRight: 8 }}>
           {messages.length === 0 ? (
-            <p style={{ opacity: 0.8 }}>No messages yet. Say hi 👋</p>
+            <p style={{ opacity: 0.7 }}>No messages yet. Say hi 👋</p>
           ) : (
             messages.map((m) => (
-              <div
-                key={m.id}
-                style={{
-                  padding: 8,
-                  background: "#111827",
-                  borderRadius: 8,
-                  border: "1px solid #1f2937",
-                }}
-              >
-                <div style={{ fontSize: 12, opacity: 0.8 }}>
+              <div key={m.id} style={msgStyle}>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
                   {m.sender_address.slice(0, 6)}…{m.sender_address.slice(-4)} •{" "}
                   {new Date(m.created_at).toLocaleTimeString()}
                 </div>
-                <div style={{ marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {m.body}
-                </div>
+                <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
               </div>
             ))
           )}
@@ -132,24 +153,16 @@ export default function LobbyChat() {
           style={{
             padding: 8,
             flex: 1,
-            border: "1px solid #374151",
-            background: "#111827",
-            color: "#e5e7eb",
+            border: "1px solid var(--border)",
             borderRadius: 8,
+            background: "var(--card-bg)",
+            color: "var(--card-fg)",
           }}
         />
         <button
-          onClick={send}
+          onClick={() => void send()}
           disabled={!isConnected || sending || body.trim().length === 0}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "#2563eb",
-            color: "white",
-            opacity: !isConnected || sending || body.trim().length === 0 ? 0.6 : 1,
-            cursor:
-              !isConnected || sending || body.trim().length === 0 ? "not-allowed" : "pointer",
-          }}
+          style={{ padding: "8px 12px", borderRadius: 8, opacity: !isConnected || sending || body.trim().length === 0 ? 0.6 : 1 }}
         >
           {sending ? "Sending..." : "Send"}
         </button>
