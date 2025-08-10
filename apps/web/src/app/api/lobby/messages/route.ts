@@ -37,21 +37,25 @@ export async function GET(req: Request) {
 // POST /api/lobby/messages  { senderAddress, body }
 export async function POST(req: Request) {
   try {
+    const supa = getSupabaseAdmin();
     const { senderAddress, body } = (await req.json()) as {
       senderAddress?: string;
       body?: string;
     };
 
-    // minimal validation
+    // Validation
     if (typeof senderAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(senderAddress)) {
       return NextResponse.json({ ok: false, error: "Invalid senderAddress" }, { status: 400 });
     }
-    if (typeof body !== "string" || body.trim().length === 0 || body.length > 2000) {
+    if (typeof body !== "string") {
       return NextResponse.json({ ok: false, error: "Invalid body" }, { status: 400 });
     }
+    const text = body.trim();
+    if (text.length === 0 || text.length > 2000) {
+      return NextResponse.json({ ok: false, error: "Body must be 1–2000 chars" }, { status: 400 });
+    }
 
-    const supa = getSupabaseAdmin();
-
+    // Get lobby id
     const { data: lobby, error: e1 } = await supa
       .from("chats")
       .select("id")
@@ -59,10 +63,28 @@ export async function POST(req: Request) {
       .single();
     if (e1 || !lobby) throw e1 || new Error("Lobby not found");
 
+    // Rate limit: max 5 messages per 60s per address
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const { count, error: e2 } = await supa
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("chat_id", lobby.id)
+      .eq("sender_address", senderAddress.toLowerCase())
+      .gt("created_at", since);
+    if (e2) throw e2;
+
+    if ((count ?? 0) >= 5) {
+      return NextResponse.json(
+        { ok: false, error: "Rate limit: max 5 messages per minute." },
+        { status: 429 },
+      );
+    }
+
+    // Insert
     const payload = {
       chat_id: lobby.id,
       sender_address: senderAddress.toLowerCase(),
-      body: body.trim(),
+      body: text,
     };
 
     const { data, error } = await supa.from("messages").insert(payload).select().single();

@@ -15,7 +15,8 @@
     "build:web": "pnpm --filter web build",
     "dev:web": "pnpm --filter web dev",
     "test": "hardhat test",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "ci": "pnpm -r install --no-frozen-lockfile && pnpm run compile && pnpm run test && pnpm --filter web run build"
   },
   "keywords": [],
   "author": "",
