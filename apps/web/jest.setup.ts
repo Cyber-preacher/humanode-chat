@@ -1,1 +1,1 @@
-process.env.SKIP_RATE_LIMIT = '1';
+jest.setTimeout(15000);

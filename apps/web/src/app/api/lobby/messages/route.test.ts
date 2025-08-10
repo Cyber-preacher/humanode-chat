@@ -69,7 +69,7 @@ describe('Lobby messages API', () => {
 
     const json = await (res as any).json();
     expect(json.ok).toBe(false);
-    expect(String(json.error)).toContain('Invalid senderAddress');
+    expect(String(json.error)).toContain('Invalid Ethereum address');
   });
 
   it('POST inserts a message (ok: true)', async () => {

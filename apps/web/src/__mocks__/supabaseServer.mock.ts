@@ -1,128 +1,132 @@
-// apps/web/src/__mocks__/supabaseServer.mock.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-type Message = {
-  id: string;
-  chat_id: string;
-  sender_address: string;
-  body: string;
-  created_at: string;
-};
+type Row = Record<string, any>;
 
-const state = {
-  lobbyId: "lobby-uuid",
-  messages: [] as Message[],
-};
+class MockDB {
+  tables: Record<string, Row[]> = {
+    chats: [{ id: 'lobby-chat-id', slug: 'lobby', title: 'Lobby', is_public: true }],
+    messages: [],
+  };
 
-export function __reset() {
-  state.messages = [];
+  get(name: string): Row[] {
+    if (!this.tables[name]) this.tables[name] = [];
+    return this.tables[name];
+  }
+
+  insert(name: string, row: Row): Row {
+    if (name === 'messages') {
+      const id = `m-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const created_at = new Date().toISOString();
+      const full = { id, created_at, ...row };
+      this.get(name).push(full);
+      return full;
+    }
+    this.get(name).push(row);
+    return row;
+  }
 }
 
-export function __setLobbyMessages(msgs: Message[]) {
-  state.messages = [...msgs];
-}
+type SelectState = { kind: 'select'; single: boolean };
+type InsertState = { kind: 'insert'; rows: Row[] };
 
-function ok<T>(data: T) {
-  return { data, error: null as any };
-}
-function err(message: string) {
-  return { data: null, error: new Error(message) };
-}
-
-class QueryBuilder {
-  private table: string;
-  private cols: string | null = null;
+class MockQuery {
   private filters: Record<string, any> = {};
-  private _order: { column: string; ascending: boolean } | null = null;
-  private _limit: number | null = null;
-  private _payload: any = null;
+  private limitN: number | null = null;
+  private orderBy: { col: string; asc: boolean } | null = null;
+  private state: SelectState | InsertState = { kind: 'select', single: false };
 
-  constructor(table: string) {
-    this.table = table;
-  }
+  constructor(private table: string, private db: MockDB) { }
 
-  select(cols: string) {
-    this.cols = cols;
+  // --- SELECT chain ---
+  select(_cols?: string) {
+    this.state = { kind: 'select', single: false };
     return this;
   }
-
-  eq(column: string, value: any) {
-    this.filters[column] = value;
+  eq(col: string, val: any) {
+    this.filters[col] = val;
     return this;
   }
-
-  order(column: string, opts: { ascending: boolean }) {
-    this._order = { column, ascending: opts.ascending };
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderBy = { col, asc: !!(opts?.ascending ?? true) };
     return this;
   }
-
   limit(n: number) {
-    this._limit = n;
+    this.limitN = n;
     return this;
   }
-
   single() {
-    if (this.table === "chats") {
-      if (this.filters["slug"] === "lobby") {
-        return ok({ id: state.lobbyId });
-      }
-      return err("Lobby not found");
-    }
-    if (this.table === "messages" && this._payload) {
-      const row: Message = {
-        id: `id-${Date.now()}`,
-        chat_id: this._payload.chat_id,
-        sender_address: this._payload.sender_address,
-        body: this._payload.body,
-        created_at: new Date().toISOString(),
-      };
-      state.messages.push(row);
-      return ok(row);
-    }
-    return err("single() not applicable");
-  }
-
-  insert(payload: any) {
-    this._payload = payload;
+    if (this.state.kind === 'select') this.state.single = true;
     return this;
   }
 
-  // Select after insert
-  select() {
-    return this;
+  // --- INSERT chain ---
+  insert(rows: Row[]) {
+    const table = this.table;
+    const db = this.db;
+    this.state = { kind: 'insert', rows };
+    return {
+      select() {
+        return {
+          async single() {
+            const inserted = rows.map((r) => db.insert(table, r));
+            return { data: inserted[0] ?? null, error: null };
+          },
+        };
+      },
+    };
   }
 
-  // Regular select query
-  async then(resolve: any) {
-    // this makes QueryBuilder awaitable if accidentally awaited
-    resolve(this);
-  }
-
-  // Non-insert fetch
-  async fetch() {
-    if (this.table === "messages") {
-      let list = state.messages.filter(
-        (m) => this.filters["chat_id"] ? m.chat_id === this.filters["chat_id"] : true
-      );
-      if (this._order) {
-        list = list.sort((a, b) =>
-          this._order!.ascending
-            ? a.created_at.localeCompare(b.created_at)
-            : b.created_at.localeCompare(a.created_at)
-        );
+  // Allow `await` on the builder like Supabase does
+  then(onFulfilled: (v: any) => void, onRejected?: (r: any) => void) {
+    (async () => {
+      try {
+        const result = await this.execute();
+        onFulfilled(result);
+      } catch (e) {
+        if (onRejected) onRejected(e);
+        else throw e;
       }
-      if (typeof this._limit === "number") list = list.slice(0, this._limit);
-      return ok(list);
+    })();
+  }
+
+  private async execute() {
+    if (this.state.kind === 'select') {
+      let rows = [...this.db.get(this.table)];
+
+      for (const [k, v] of Object.entries(this.filters)) {
+        rows = rows.filter((r) => r[k] === v);
+      }
+
+      if (this.orderBy) {
+        const { col, asc } = this.orderBy;
+        rows.sort((a, b) => {
+          const av = a[col];
+          const bv = b[col];
+          if (av === bv) return 0;
+          return (av < bv ? -1 : 1) * (asc ? 1 : -1);
+        });
+      }
+
+      if (this.limitN !== null) rows = rows.slice(0, this.limitN);
+
+      if (this.state.single) return { data: rows[0] ?? null, error: null };
+      return { data: rows, error: null };
     }
-    return err("fetch not implemented for table: " + this.table);
+
+    if (this.state.kind === 'insert') {
+      const inserted = this.state.rows.map((r) => this.db.insert(this.table, r));
+      return { data: inserted, error: null };
+    }
+
+    return { data: null, error: null };
   }
 }
 
-class MockSupa {
-  from(table: string) {
-    return new QueryBuilder(table);
-  }
-}
-
-export function getSupabaseAdmin() {
-  return new MockSupa() as any;
+export function getSupabaseServer() {
+  const db = new MockDB();
+  return {
+    from(table: string) {
+      return new MockQuery(table, db) as any;
+    },
+  };
 }
