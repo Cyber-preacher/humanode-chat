@@ -1,0 +1,8 @@
+# Require a code owner on web app
+/apps/web/*  @Cyber-preacher
+
+# Contracts
+/contracts/* @Cyber-preacher
+
+# CI & repo meta
+/.github/*   @Cyber-preacher

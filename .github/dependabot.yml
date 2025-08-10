@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  # Monorepo root (pnpm workspace)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"     # or weekly
+      time: "04:00"
+    target-branch: "dev"    # ← change to "main" if you prefer
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(root)"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # apps/web (pnpm is still 'npm' ecosystem for Dependabot)
+  - package-ecosystem: "npm"
+    directory: "/apps/web"
+    schedule:
+      interval: "daily"
+      time: "04:15"
+    target-branch: "dev"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps(web)"
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "04:30"
+    target-branch: "dev"
+    commit-message:
+      prefix: "deps(actions)"
