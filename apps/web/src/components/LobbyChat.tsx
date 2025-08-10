@@ -42,7 +42,9 @@ export default function LobbyChat() {
         setMessages(data.messages);
         setLastError(null);
       } else {
-        const err = ("error" in (data as { error?: string }) && (data as unknown as { error?: string }).error) || "Failed to load";
+        const err =
+          ("error" in (data as { error?: string }) &&
+            (data as unknown as { error?: string }).error) || "Failed to load";
         setLastError(String(err));
       }
     } catch (e) {
@@ -125,7 +127,9 @@ export default function LobbyChat() {
       const data = json as LobbyPostResponse;
 
       if (!("ok" in data) || !data.ok) {
-        const err = ("error" in (data as { error?: string }) && (data as unknown as { error?: string }).error) || "Failed";
+        const err =
+          ("error" in (data as { error?: string }) &&
+            (data as unknown as { error?: string }).error) || "Failed";
         throw new Error(String(err));
       }
 
@@ -211,7 +215,7 @@ export default function LobbyChat() {
           }}
         />
         <button
-          onClick={send}
+          onClick={() => void send()}
           disabled={!isConnected || sending || body.trim().length === 0}
           style={{
             padding: "10px 14px",
