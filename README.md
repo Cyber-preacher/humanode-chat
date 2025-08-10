@@ -1,6 +1,11 @@
  chore/release-drafter-triggers
 [![CI](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml/badge.svg)](…)
 
+[![CI](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/codeql.yml/badge.svg)](../../actions/workflows/codeql.yml)
+[![Release Draft](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/release-drafter.yml/badge.svg)](../../actions/workflows/release-drafter.yml)
+
+
 ## Humanode-chat
 
 Humanode-chat
