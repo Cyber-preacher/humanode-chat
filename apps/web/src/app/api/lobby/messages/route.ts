@@ -1,13 +1,43 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+
+// ===== Validation =====
+const GetQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+const PostBody = z.object({
+  senderAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
+  body: z
+    .string()
+    .trim()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message too long (max 2000 chars)"),
+});
+
+// ===== Rate limit config (per address, per chat) =====
+const RATE_LIMIT_WINDOW_SEC = 30;
+const RATE_LIMIT_MAX = 5;
 
 // GET /api/lobby/messages?limit=50
 export async function GET(req: Request) {
   try {
-    const supa = getSupabaseAdmin();
-
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
+    const parsed = GetQuery.safeParse({
+      limit: searchParams.get("limit"),
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: parsed.error.issues.map(i => i.message).join(", ") },
+        { status: 400 }
+      );
+    }
+    const { limit } = parsed.data;
+
+    const supa = getSupabaseAdmin();
 
     // Find lobby chat id
     const { data: lobby, error: e1 } = await supa
@@ -37,25 +67,21 @@ export async function GET(req: Request) {
 // POST /api/lobby/messages  { senderAddress, body }
 export async function POST(req: Request) {
   try {
+    const json = await req.json();
+    const parsed = PostBody.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: parsed.error.issues.map(i => i.message).join(", ") },
+        { status: 400 }
+      );
+    }
+
+    const sender_address = parsed.data.senderAddress.toLowerCase();
+    const body = parsed.data.body.trim();
+
     const supa = getSupabaseAdmin();
-    const { senderAddress, body } = (await req.json()) as {
-      senderAddress?: string;
-      body?: string;
-    };
 
-    // Validation
-    if (typeof senderAddress !== "string" || !/^0x[a-fA-F0-9]{40}$/.test(senderAddress)) {
-      return NextResponse.json({ ok: false, error: "Invalid senderAddress" }, { status: 400 });
-    }
-    if (typeof body !== "string") {
-      return NextResponse.json({ ok: false, error: "Invalid body" }, { status: 400 });
-    }
-    const text = body.trim();
-    if (text.length === 0 || text.length > 2000) {
-      return NextResponse.json({ ok: false, error: "Body must be 1–2000 chars" }, { status: 400 });
-    }
-
-    // Get lobby id
+    // Find lobby chat id
     const { data: lobby, error: e1 } = await supa
       .from("chats")
       .select("id")
@@ -63,28 +89,32 @@ export async function POST(req: Request) {
       .single();
     if (e1 || !lobby) throw e1 || new Error("Lobby not found");
 
-    // Rate limit: max 5 messages per 60s per address
-    const since = new Date(Date.now() - 60_000).toISOString();
-    const { count, error: e2 } = await supa
+    // --- Rate limit: max RATE_LIMIT_MAX messages / RATE_LIMIT_WINDOW_SEC per sender per chat ---
+    const sinceIso = new Date(Date.now() - RATE_LIMIT_WINDOW_SEC * 1000).toISOString();
+    const { count: recentCount, error: countErr } = await supa
       .from("messages")
-      .select("id", { count: "exact", head: true })
+      .select("*", { count: "exact", head: true })
       .eq("chat_id", lobby.id)
-      .eq("sender_address", senderAddress.toLowerCase())
-      .gt("created_at", since);
-    if (e2) throw e2;
+      .eq("sender_address", sender_address)
+      .gt("created_at", sinceIso);
 
-    if ((count ?? 0) >= 5) {
+    if (countErr) throw countErr;
+
+    if (typeof recentCount === "number" && recentCount >= RATE_LIMIT_MAX) {
       return NextResponse.json(
-        { ok: false, error: "Rate limit: max 5 messages per minute." },
-        { status: 429 },
+        {
+          ok: false,
+          error: `Rate limit exceeded. Please wait a bit (≤ ${RATE_LIMIT_MAX} msgs / ${RATE_LIMIT_WINDOW_SEC}s).`,
+        },
+        { status: 429 }
       );
     }
 
-    // Insert
+    // Insert message
     const payload = {
       chat_id: lobby.id,
-      sender_address: senderAddress.toLowerCase(),
-      body: text,
+      sender_address,
+      body,
     };
 
     const { data, error } = await supa.from("messages").insert(payload).select().single();
