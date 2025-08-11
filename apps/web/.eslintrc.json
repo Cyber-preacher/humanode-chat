@@ -1,12 +1,18 @@
 {
-  "extends": [ "next/core-web-vitals", "plugin:@typescript-eslint/recommended" ],
+  "root": true,
+  "extends": [ "next/core-web-vitals" ],
   "overrides": [
     {
-      "files": [ "**/*.test.{ts,tsx,js,jsx}", "**/__mocks__/**/*" ],
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "src/__mocks__/**",
+        "jest.config.js"
+      ],
       "rules": {
-        "@typescript-eslint/no-require-imports": "off",
-        "@typescript-eslint/no-var-requires": "off",
         "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-require-imports": "off",
+        "import/no-anonymous-default-export": "off",
         "@typescript-eslint/no-unused-vars": [
           "warn",
           {

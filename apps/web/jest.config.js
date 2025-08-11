@@ -1,13 +1,14 @@
 /** @type {import('jest').Config} */
 module.exports = {
-  rootDir: '.',
-  testEnvironment: 'node',
-  transform: {
-    '^.+\\.(ts|tsx)$': ['@swc/jest'],
-  },
+  testEnvironment: "node",                // API routes run on the server
+  roots: ["<rootDir>/src"],
+  testMatch: ["**/*.test.ts"],           // pick up all .test.ts under src
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/src/$1',
+    "^@/(.*)$": "<rootDir>/src/$1",
   },
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  testMatch: ['<rootDir>/src/app/api/**/*.test.ts'],
+  transform: {
+    "^.+\\.(t|j)sx?$": ["@swc/jest"],
+  },
+  verbose: false,
 };

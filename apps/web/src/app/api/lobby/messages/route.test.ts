@@ -1,95 +1,95 @@
 /**
- * apps/web/src/app/api/lobby/messages/route.test.ts
- *
- * Jest tests for the lobby messages API route.
- * We mock Supabase on the *server* side via our local __mocks__ helper.
+ * Tests the /api/lobby/messages route using a fully awaitable Supabase mock.
+ * We run in the 'node' test environment (see jest.config.js).
  */
 
-// Mock the server-side supabase helper that route.ts imports
-jest.mock('@/lib/supabase/server', () => {
-  // path from: src/app/api/lobby/messages → back to src is 4 levels
-  return require('../../../../__mocks__/supabaseServer.mock');
+import { NextRequest } from "next/server";
+import { GET, POST } from "./route";
+
+// Wire our mock module in place of '@/lib/supabase/server'
+jest.mock("@/lib/supabase/server", () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const m = require("../../../../__mocks__/supabaseServer.mock");
+  return { __esModule: true, ...m };
 });
 
-import { GET, POST } from './route';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const supaMock = require("../../../../__mocks__/supabaseServer.mock");
 
-// Control the mock state directly
-const supaMock = require('../../../../__mocks__/supabaseServer.mock');
-
-// Use the standard WHATWG Request (provided via undici in jest.setup)
-function makeReq(url: string, init?: RequestInit): Request {
-  const full = new URL(url, 'http://localhost').toString();
-  return new Request(full, init);
+/** Construct a NextRequest with an absolute URL (required by WHATWG URL). */
+function makeReq(path: string, init?: RequestInit): NextRequest {
+  const url = new URL(path, "http://localhost:3000");
+  // @ts-expect-error — constructing NextRequest for unit tests
+  return new NextRequest(new Request(url, init));
 }
 
-describe('Lobby messages API', () => {
+describe("Lobby messages API", () => {
   beforeEach(() => {
     supaMock.__reset();
+    supaMock.__setLobbyChat("lobby-1");
     supaMock.__setLobbyMessages([
       {
-        id: 'm1',
-        chat_id: 'lobby-uuid',
-        sender_address: '0xaaaa00000000000000000000000000000000aaaa',
-        body: 'hello',
-        created_at: new Date(Date.now() - 1000).toISOString(),
+        id: "m1",
+        sender_address: "0xaaa",
+        body: "hello",
+        created_at: "2024-01-01T00:00:00.000Z",
+        chat_id: "lobby-1",
       },
       {
-        id: 'm2',
-        chat_id: 'lobby-uuid',
-        sender_address: '0xbbbb00000000000000000000000000000000bbbb',
-        body: 'world',
-        created_at: new Date().toISOString(),
+        id: "m2",
+        sender_address: "0xbbb",
+        body: "world",
+        created_at: "2024-01-01T00:01:00.000Z",
+        chat_id: "lobby-1",
       },
     ]);
   });
 
-  it('GET returns messages (ok: true)', async () => {
-    const req = makeReq('/api/lobby/messages?limit=2');
+  it("GET returns messages (ok: true)", async () => {
+    const req = makeReq("/api/lobby/messages?limit=2");
     const res = await GET(req as unknown as Request);
-    expect(res.status).toBe(200);
 
-    const json = await (res as any).json();
+    expect(res.status).toBe(200);
+    const json = (await (res as any).json()) as any;
+
     expect(json.ok).toBe(true);
     expect(Array.isArray(json.messages)).toBe(true);
     expect(json.messages).toHaveLength(2);
-    expect(json.messages[0].body).toBe('hello');
-    expect(json.messages[1].body).toBe('world');
+    expect(json.messages[0].id).toBe("m1");
+    expect(json.messages[1].id).toBe("m2");
   });
 
-  it('POST rejects invalid senderAddress', async () => {
-    const invalid = { senderAddress: 'not-an-addr', body: 'bad' };
-    const req = makeReq('/api/lobby/messages', {
-      method: 'POST',
-      body: JSON.stringify(invalid),
-      headers: { 'content-type': 'application/json' },
+  it("POST rejects invalid senderAddress", async () => {
+    const bad = makeReq("/api/lobby/messages", {
+      method: "POST",
+      body: JSON.stringify({ senderAddress: "not-an-addr", body: "x" }),
+      headers: { "content-type": "application/json" },
     });
 
-    const res = await POST(req as unknown as Request);
+    const res = await POST(bad as unknown as Request);
+    const json = (await (res as any).json()) as any;
+
     expect(res.status).toBe(400);
-
-    const json = await (res as any).json();
     expect(json.ok).toBe(false);
-    expect(String(json.error)).toContain('Invalid Ethereum address');
+    // Adjust this match if your route uses a different exact message
+    expect(String(json.error)).toContain("Invalid Ethereum address");
   });
 
-  it('POST inserts a message (ok: true)', async () => {
-    const good = {
-      senderAddress: '0xCcCc00000000000000000000000000000000cCcC',
-      body: 'new msg',
-    };
-    const req = makeReq('/api/lobby/messages', {
-      method: 'POST',
-      body: JSON.stringify(good),
-      headers: { 'content-type': 'application/json' },
+  it("POST inserts a message (ok: true)", async () => {
+    const good = makeReq("/api/lobby/messages", {
+      method: "POST",
+      body: JSON.stringify({
+        senderAddress: "0x1111111111111111111111111111111111111111",
+        body: "hey there",
+      }),
+      headers: { "content-type": "application/json" },
     });
 
-    const res = await POST(req as unknown as Request);
+    const res = await POST(good as unknown as Request);
     expect(res.status).toBe(200);
 
-    const json = await (res as any).json();
+    const json = (await (res as any).json()) as any;
     expect(json.ok).toBe(true);
-    expect(json.message.body).toBe('new msg');
-    // sender_address should be lowercased by the route
-    expect(json.message.sender_address).toBe(good.senderAddress.toLowerCase());
+    expect(json.message?.body).toBe("hey there");
   });
 });

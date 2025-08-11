@@ -1,132 +1,150 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// A minimal, awaitable Supabase server mock that supports the exact
+// query chains used by the lobby route (GET + POST).
 
-type Row = Record<string, any>;
+export type Message = {
+  id: string;
+  sender_address: string;
+  body: string;
+  created_at: string;
+  chat_id: string;
+};
 
-class MockDB {
-  tables: Record<string, Row[]> = {
-    chats: [{ id: 'lobby-chat-id', slug: 'lobby', title: 'Lobby', is_public: true }],
-    messages: [],
-  };
+const state = {
+  chatId: "lobby-1",
+  messages: [] as Message[],
+};
 
-  get(name: string): Row[] {
-    if (!this.tables[name]) this.tables[name] = [];
-    return this.tables[name];
-  }
-
-  insert(name: string, row: Row): Row {
-    if (name === 'messages') {
-      const id = `m-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const created_at = new Date().toISOString();
-      const full = { id, created_at, ...row };
-      this.get(name).push(full);
-      return full;
-    }
-    this.get(name).push(row);
-    return row;
-  }
+export function __reset() {
+  state.chatId = "lobby-1";
+  state.messages = [];
 }
 
-type SelectState = { kind: 'select'; single: boolean };
-type InsertState = { kind: 'insert'; rows: Row[] };
-
-class MockQuery {
-  private filters: Record<string, any> = {};
-  private limitN: number | null = null;
-  private orderBy: { col: string; asc: boolean } | null = null;
-  private state: SelectState | InsertState = { kind: 'select', single: false };
-
-  constructor(private table: string, private db: MockDB) { }
-
-  // --- SELECT chain ---
-  select(_cols?: string) {
-    this.state = { kind: 'select', single: false };
-    return this;
-  }
-  eq(col: string, val: any) {
-    this.filters[col] = val;
-    return this;
-  }
-  order(col: string, opts?: { ascending?: boolean }) {
-    this.orderBy = { col, asc: !!(opts?.ascending ?? true) };
-    return this;
-  }
-  limit(n: number) {
-    this.limitN = n;
-    return this;
-  }
-  single() {
-    if (this.state.kind === 'select') this.state.single = true;
-    return this;
-  }
-
-  // --- INSERT chain ---
-  insert(rows: Row[]) {
-    const table = this.table;
-    const db = this.db;
-    this.state = { kind: 'insert', rows };
-    return {
-      select() {
-        return {
-          async single() {
-            const inserted = rows.map((r) => db.insert(table, r));
-            return { data: inserted[0] ?? null, error: null };
-          },
-        };
-      },
-    };
-  }
-
-  // Allow `await` on the builder like Supabase does
-  then(onFulfilled: (v: any) => void, onRejected?: (r: any) => void) {
-    (async () => {
-      try {
-        const result = await this.execute();
-        onFulfilled(result);
-      } catch (e) {
-        if (onRejected) onRejected(e);
-        else throw e;
-      }
-    })();
-  }
-
-  private async execute() {
-    if (this.state.kind === 'select') {
-      let rows = [...this.db.get(this.table)];
-
-      for (const [k, v] of Object.entries(this.filters)) {
-        rows = rows.filter((r) => r[k] === v);
-      }
-
-      if (this.orderBy) {
-        const { col, asc } = this.orderBy;
-        rows.sort((a, b) => {
-          const av = a[col];
-          const bv = b[col];
-          if (av === bv) return 0;
-          return (av < bv ? -1 : 1) * (asc ? 1 : -1);
-        });
-      }
-
-      if (this.limitN !== null) rows = rows.slice(0, this.limitN);
-
-      if (this.state.single) return { data: rows[0] ?? null, error: null };
-      return { data: rows, error: null };
-    }
-
-    if (this.state.kind === 'insert') {
-      const inserted = this.state.rows.map((r) => this.db.insert(this.table, r));
-      return { data: inserted, error: null };
-    }
-
-    return { data: null, error: null };
-  }
+export function __setLobbyChat(id: string) {
+  state.chatId = id;
 }
 
+export function __setLobbyMessages(arr: Message[]) {
+  state.messages = arr.slice();
+}
+
+// The app imports { getSupabaseServer } from '@/lib/supabase/server'
 export function getSupabaseServer() {
-  const db = new MockDB();
   return {
     from(table: string) {
-      return new MockQuery(table, db) as any;
+      const ctx: any = {
+        table,
+        _select: null as null | string,
+        _filters: [] as Array<{ col: string; val: unknown }>,
+        _order: null as null | { col: string; opts?: { ascending?: boolean } },
+        _limit: null as null | number,
+        _single: false,
+        _insert: null as null | Record<string, unknown> | Record<string, unknown>[],
+      };
+
+      const api: any = {
+        select(cols: string) {
+          ctx._select = cols;
+          return api;
+        },
+        eq(col: string, val: unknown) {
+          ctx._filters.push({ col, val });
+          return api;
+        },
+        order(col: string, opts?: { ascending?: boolean }) {
+          ctx._order = { col, opts };
+          return api;
+        },
+        limit(n: number) {
+          ctx._limit = n;
+          return api;
+        },
+        single() {
+          ctx._single = true;
+          return api;
+        },
+        insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
+          ctx._insert = payload;
+          return api;
+        },
+
+        // Make the chain awaitable: `await supa.from(...).select(...).eq(...);`
+        async then(resolve: (v: any) => void, reject: (e: unknown) => void) {
+          try {
+            const out = await exec();
+            resolve(out);
+          } catch (e) {
+            reject(e);
+          }
+        },
+      };
+
+      async function exec(): Promise<{ data: any; error: null | Error }> {
+        if (ctx.table === "chats") {
+          // Only path used: .select("id").eq("slug","lobby").single()
+          if (!ctx._single) {
+            return { data: [{ id: state.chatId }], error: null };
+          }
+          return { data: { id: state.chatId }, error: null };
+        }
+
+        if (ctx.table === "messages") {
+          // Handle INSERT path: .insert({...}).select().single()
+          if (ctx._insert) {
+            const rows = Array.isArray(ctx._insert) ? ctx._insert : [ctx._insert];
+            const inserted = rows.map((r) => ({
+              id: `m${Date.now()}${Math.random().toString(16).slice(2)}`,
+              created_at: new Date().toISOString(),
+              chat_id: state.chatId,
+              sender_address: String((r as any).sender_address ?? ""),
+              body: String((r as any).body ?? ""),
+            })) as Message[];
+
+            state.messages.push(...inserted);
+
+            if (ctx._single) {
+              return { data: inserted[0], error: null };
+            }
+            return { data: inserted, error: null };
+          }
+
+          // Handle SELECT path: .select(...).eq("chat_id", chatId).order(...).limit(n)
+          let rows = state.messages.slice();
+
+          if (ctx._filters.length) {
+            rows = rows.filter((m) =>
+              ctx._filters.every((f) => (m as any)[f.col] === f.val)
+            );
+          }
+
+          if (ctx._order) {
+            const asc = ctx._order.opts?.ascending !== false;
+            rows.sort((a: any, b: any) => {
+              const av = a[ctx._order!.col];
+              const bv = b[ctx._order!.col];
+              if (av === bv) return 0;
+              return av < bv ? (asc ? -1 : 1) : (asc ? 1 : -1);
+            });
+          }
+
+          if (typeof ctx._limit === "number") {
+            rows = rows.slice(0, ctx._limit);
+          }
+
+          return { data: rows, error: null };
+        }
+
+        return { data: null, error: new Error("unknown table") };
+      }
+
+      return api;
     },
   };
 }
+
+export default {
+  getSupabaseServer,
+  __reset,
+  __setLobbyChat,
+  __setLobbyMessages,
+  __state: state,
+};
