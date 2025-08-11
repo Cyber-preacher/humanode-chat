@@ -1,31 +1,41 @@
 // apps/web/src/env.ts
-import { z } from "zod";
+import { z } from 'zod';
 
 /**
- * Public (client) env must be prefixed with NEXT_PUBLIC_.
- * These are readable in the browser, so only non-secrets go here.
+ * Client-safe env (NEXT_PUBLIC_* only).
+ * This gets bundled in the browser, so never put secrets here.
  */
-const ClientSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+const ClientEnvSchema = z.object({
+    NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
 });
 
-/**
- * Server-only env (secrets).
- * Do NOT expose these to the client.
- */
-const ServerSchema = z.object({
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+const clientParse = ClientEnvSchema.safeParse({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
 });
 
-/**
- * We keep parsing lazy—only when a caller asks—so CI/build
- * won’t explode unless the code path actually needs these vars.
- */
-export function getClientEnv() {
-  return ClientSchema.parse(process.env);
+if (!clientParse.success) {
+    const issues = clientParse.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    throw new Error(`[env] Invalid NEXT_PUBLIC_* env: ${issues}`);
 }
 
-export function getServerEnv() {
-  return ServerSchema.parse(process.env);
-}
+/**
+ * Exported as `env` for convenience (current usage),
+ * and `clientEnv` if you want the explicit name.
+ */
+export const env = clientParse.data;
+export const clientEnv = clientParse.data;
+export type ClientEnv = z.infer<typeof ClientEnvSchema>;
+
+/**
+ * Optionally, if you want server-only validation too,
+ * you can add secrets here and import where needed.
+ * (Not strictly required for this warning fix.)
+ */
+// const ServerEnvSchema = z.object({
+//   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+// });
+// export const serverEnv = ServerEnvSchema.parse({
+//   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+// });
