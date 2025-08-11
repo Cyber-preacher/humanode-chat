@@ -1,15 +1,23 @@
-// apps/web/src/lib/supabase/client.ts
 'use client';
 
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/env';
 
-export function getSupabaseBrowser() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-  if (!url || !anon) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
-  }
-  return createClient(url, anon, {
-    auth: { persistSession: false },
-  });
-}
+/**
+ * Browser Supabase client using validated public env.
+ * We keep both a named and default export, plus a
+ * compatibility helper `getSupabaseBrowser()` so old
+ * imports keep working.
+ */
+export const supabaseClient = createClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+        auth: { persistSession: false },
+    }
+);
+
+/** Back-compat with older imports in components */
+export const getSupabaseBrowser = () => supabaseClient;
+
+export default supabaseClient;
