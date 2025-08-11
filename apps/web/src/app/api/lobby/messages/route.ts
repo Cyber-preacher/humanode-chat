@@ -26,14 +26,12 @@ const GetQuery = z.object({
 });
 
 const PostBody = z.object({
-  senderAddress: z
-    .string()
-    .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid Ethereum address"),
+  senderAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
   body: z
     .string()
     .trim()
-    .min(1, "Message cannot be empty")
-    .max(2000, "Message too long (max 2000 chars)"),
+    .min(1, 'Message cannot be empty')
+    .max(2000, 'Message too long (max 2000 chars)'),
 });
 
 // ===== Rate limit config (per address, per chat) =====
