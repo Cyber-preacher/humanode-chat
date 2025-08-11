@@ -4,15 +4,15 @@ Thanks for your interest in contributing to **Humanode Chat**! This doc explains
 
 ## Repo layout
 
-* **Root** — Hardhat config, contracts, deploy scripts, CI.
-* **apps/web** — Next.js 15 app (App Router) with Wagmi/RainbowKit + Supabase.
-* **deployments/** — Auto-written JSON with latest on-chain addresses (per network).
+- **Root** — Hardhat config, contracts, deploy scripts, CI.
+- **apps/web** — Next.js 15 app (App Router) with Wagmi/RainbowKit + Supabase.
+- **deployments/** — Auto-written JSON with latest on-chain addresses (per network).
 
 ## Prerequisites
 
-* **Node.js** ≥ 20
-* **pnpm** ≥ 9
-* Git
+- **Node.js** ≥ 20
+- **pnpm** ≥ 9
+- Git
 
 ```bash
 corepack enable  # if you haven’t
@@ -56,8 +56,8 @@ pnpm --filter web dev
 
 ### Smoke tests (local)
 
-* API: `GET /api/lobby/messages?limit=5` should return `{ ok: true, messages: [...] }`
-* POST example:
+- API: `GET /api/lobby/messages?limit=5` should return `{ ok: true, messages: [...] }`
+- POST example:
 
 ```bash
 curl -X POST http://localhost:3000/api/lobby/messages \
@@ -65,41 +65,42 @@ curl -X POST http://localhost:3000/api/lobby/messages \
   -d '{"senderAddress":"0xYourAddr","body":"hello"}'
 ```
 
-* Lobby UI: visit `/lobby`.
+- Lobby UI: visit `/lobby`.
 
 ## Branching & PR flow
 
-* Default branches:
+- Default branches:
 
-  * `main` — protected, release-ready.
-  * `dev` — integration branch.
-* Feature branches: `feat/<slug>`, `fix/<slug>`, `chore/<slug>`.
-* Open PRs **into `dev`**. A maintainer will promote `dev → main` via PR when ready.
+  - `main` — protected, release-ready.
+  - `dev` — integration branch.
+
+- Feature branches: `feat/<slug>`, `fix/<slug>`, `chore/<slug>`.
+- Open PRs **into `dev`**. A maintainer will promote `dev → main` via PR when ready.
 
 ### Commit style (Conventional Commits)
 
 Examples:
 
-* `feat(web): lobby chat UI`
-* `fix(api): handle empty lobby`
-* `chore(ci): cache pnpm`
+- `feat(web): lobby chat UI`
+- `fix(api): handle empty lobby`
+- `chore(ci): cache pnpm`
 
 ## CI expectations
 
 Our GitHub Action installs deps with **pnpm**, compiles contracts, and builds the Next.js app (which runs ESLint & type checks). Your PR should:
 
-* ✅ `pnpm -r install` succeeds
-* ✅ `pnpm run compile` (root) succeeds
-* ✅ `pnpm --filter web build` succeeds (or the CI build step does)
-* ✅ No secrets committed; `.env` files are ignored
+- ✅ `pnpm -r install` succeeds
+- ✅ `pnpm run compile` (root) succeeds
+- ✅ `pnpm --filter web build` succeeds (or the CI build step does)
+- ✅ No secrets committed; `.env` files are ignored
 
 ## Coding standards
 
-* **TypeScript** strict; avoid `any` in new code.
-* **ESLint** runs during Next.js build; fix or `// eslint-disable-next-line <rule>` sparingly with rationale.
-* **Style**: basic CSS-in-JS inline styles today; a component library/theming may be added later.
-* **Security**: never commit secrets. Keep private keys & service roles in GitHub Secrets or local env only.
-* **Contracts**: when you deploy, prefer the **AddressRouter** + `scripts/sync-addresses.js` to keep frontend addresses up to date.
+- **TypeScript** strict; avoid `any` in new code.
+- **ESLint** runs during Next.js build; fix or `// eslint-disable-next-line <rule>` sparingly with rationale.
+- **Style**: basic CSS-in-JS inline styles today; a component library/theming may be added later.
+- **Security**: never commit secrets. Keep private keys & service roles in GitHub Secrets or local env only.
+- **Contracts**: when you deploy, prefer the **AddressRouter** + `scripts/sync-addresses.js` to keep frontend addresses up to date.
 
 ## Useful scripts
 
@@ -121,12 +122,10 @@ pnpm --filter web seed   # seed Supabase lobby row (requires .env.local)
 
 Please use the issue templates. Include:
 
-* What you expected vs what happened
-* Repro steps (commands, env, logs)
-* Screenshots or GIF if UI-related
+- What you expected vs what happened
+- Repro steps (commands, env, logs)
+- Screenshots or GIF if UI-related
 
 ## License & attribution
 
 This project is MIT-licensed. By contributing, you agree your contributions are licensed under the project’s license.
-
-
