@@ -1,53 +1,37 @@
-@"
-# --- Default: let Git detect text; we’ll pin endings per type below
-*               text=auto
+# .gitattributes
+# Normalize line endings
+* text=auto
 
-# --- Source code: force LF in repo
-*.js            text eol=lf
-*.jsx           text eol=lf
-*.ts            text eol=lf
-*.tsx           text eol=lf
-*.mjs           text eol=lf
-*.cjs           text eol=lf
-*.json          text eol=lf
-*.yml           text eol=lf
-*.yaml          text eol=lf
-*.css           text eol=lf
-*.scss          text eol=lf
-*.md            text eol=lf
-*.html          text eol=lf
-*.sh            text eol=lf
-*.env           text eol=lf
-*.env.*         text eol=lf
+# Scripts
+*.sh   text eol=lf
+*.bash text eol=lf
+*.ps1  text eol=crlf
 
-# Next/JS project files
-.next/**        -text
-dist/**         -text
-build/**        -text
+# Lockfiles & archives as text (better diffs)
+pnpm-lock.yaml text
+yarn.lock      text
+package-lock.json text
+*.json         text
+*.yml          text
+*.yaml         text
+*.md           text
+*.ts           text
+*.tsx          text
+*.js           text
+*.jsx          text
+*.css          text
+*.mjs          text
 
-# Husky shell hooks should be LF
-.husky/*        text eol=lf
-
-# Windows scripts: keep CRLF
-*.bat           text eol=crlf
-*.cmd           text eol=crlf
-*.ps1           text eol=crlf
-
-# Images / fonts / binaries
-*.png           binary
-*.jpg           binary
-*.jpeg          binary
-*.gif           binary
-*.webp          binary
-*.ico           binary
-*.pdf           binary
-*.zip           binary
-*.gz            binary
-*.mp4           binary
-*.mov           binary
-*.ttf           binary
-*.otf           binary
-*.eot           binary
-*.woff          binary
-*.woff2         binary
-"@ | Set-Content .gitattributes -Encoding ascii
+# Treat images/binaries as binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.tgz  binary
+*.woff binary
+*.woff2 binary
