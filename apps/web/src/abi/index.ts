@@ -1,2 +1,2 @@
 // apps/web/src/abi/index.ts
-export { ProfileRegistryAbi } from "./ProfileRegistry";
+export { ProfileRegistryAbi } from './ProfileRegistry';

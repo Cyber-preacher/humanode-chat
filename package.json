@@ -1,47 +1,47 @@
 {
-    "name":  "humanode-hardhat",
-    "version":  "1.0.0",
-    "private":  true,
-    "description":  "",
-    "main":  "index.js",
-    "workspaces":  [
-                       "apps/web"
-                   ],
-    "scripts":  {
-                    "compile":  "hardhat compile",
-                    "prepare":  "husky",
-                    "deploy:router":  "hardhat run --network humanode scripts/deploy_router.js",
-                    "deploy:profile":  "hardhat run --network humanode scripts/deploy_profile.js",
-                    "deploy:chat":  "hardhat run --network humanode scripts/deploy_chat.js",
-                    "deploy:all":  "pnpm run deploy:router \u0026\u0026 pnpm run deploy:profile \u0026\u0026 pnpm run deploy:chat",
-                    "sync:addresses":  "node scripts/sync-addresses.js",
-                    "build:web":  "pnpm --filter web build",
-                    "dev:web":  "pnpm --filter web dev",
-                    "test":  "hardhat test",
-                    "build":  "pnpm -r build",
-                    "ci":  "pnpm -r install --no-frozen-lockfile \u0026\u0026 pnpm run compile \u0026\u0026 pnpm run test \u0026\u0026 pnpm --filter web run build"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "devDependencies":  {
-                            "@nomicfoundation/hardhat-toolbox":  "^6.1.0",
-                            "hardhat":  "^2.26.1",
-                            "husky":  "^9.1.7",
-                            "lint-staged":  "^16.1.5"
-                        },
-    "dependencies":  {
-                         "@biomapper-sdk/core":  "^0.4.0",
-                         "@biomapper-sdk/libraries":  "^0.4.0",
-                         "dotenv":  "^17.2.1"
-                     },
-    "lint-staged":  {
-                        "*.{js,jsx,ts,tsx}":  [
-                                                  "pnpm --filter web lint --fix",
-                                                  "pnpm --filter web typecheck --noEmit --pretty false"
-                                              ],
-                        "*.{json,md,yml,yaml}":  "prettier --write"
-                    }
+  "name": "humanode-hardhat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "index.js",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "compile": "hardhat compile",
+    "prepare": "husky",
+    "deploy:router": "hardhat run --network humanode scripts/deploy_router.js",
+    "deploy:profile": "hardhat run --network humanode scripts/deploy_profile.js",
+    "deploy:chat": "hardhat run --network humanode scripts/deploy_chat.js",
+    "deploy:all": "pnpm run deploy:router && pnpm run deploy:profile && pnpm run deploy:chat",
+    "sync:addresses": "node scripts/sync-addresses.js",
+    "build:web": "pnpm --filter web build",
+    "dev:web": "pnpm --filter web dev",
+    "test": "hardhat test",
+    "build": "pnpm -r build",
+    "ci": "pnpm -r install --no-frozen-lockfile && pnpm run compile && pnpm run test && pnpm --filter web run build",
+    "format": "prettier --config ./.prettierrc.json --write .",
+    "format:check": "prettier --config ./.prettierrc.json --check ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "hardhat": "^2.26.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.5"
+  },
+  "dependencies": {
+    "@biomapper-sdk/core": "^0.4.0",
+    "@biomapper-sdk/libraries": "^0.4.0",
+    "dotenv": "^17.2.1"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "pnpm --filter web lint --fix",
+      "pnpm --filter web typecheck --noEmit --pretty false"
+    ],
+    "*.{json,md,yml,yaml}": "prettier --write"
+  }
 }

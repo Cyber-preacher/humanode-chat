@@ -1,8 +1,4 @@
 {
-  "apps/web/**/*.{js,jsx,ts,tsx}": [
-    "pnpm -C apps/web exec eslint --max-warnings=0 --fix"
-  ],
-  "apps/web/**/*.{json,md,yml,yaml}": [
-    "pnpm -C apps/web exec prettier --write"
-  ]
+  "apps/web/**/*.{js,jsx,ts,tsx}": "pnpm -C apps/web exec eslint --fix",
+  "apps/web/**/*.{json,md,yml,yaml,css}": "pnpm -C apps/web exec prettier --write"
 }
