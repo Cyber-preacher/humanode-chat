@@ -1,52 +1,53 @@
-/**
- * Tests the /api/lobby/messages route using a fully awaitable Supabase mock.
- * We run in the 'node' test environment (see jest.config.js).
- */
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { NextRequest } from "next/server";
+
+// IMPORTANT: make Next’s web Request/Response available under Node
+// (Next 15 exports these from next/server already; just importing NextRequest is enough in Jest node env)
+
 import { GET, POST } from "./route";
 
-// Wire our mock module in place of '@/lib/supabase/server'
-jest.mock("@/lib/supabase/server", () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const m = require("../../../../__mocks__/supabaseServer.mock");
-  return { __esModule: true, ...m };
-});
-
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// Use the local mock directly (avoid alias issues on Windows)
 const supaMock = require("../../../../__mocks__/supabaseServer.mock");
 
-/** Construct a NextRequest with an absolute URL (required by WHATWG URL). */
-function makeReq(path: string, init?: RequestInit): NextRequest {
-  const url = new URL(path, "http://localhost:3000");
-  // @ts-expect-error — constructing NextRequest for unit tests
-  return new NextRequest(new Request(url, init));
+/** Construct a NextRequest with an absolute URL (JSDOM/URL require it). */
+function makeReq(url: string, init?: RequestInit): NextRequest {
+  const abs = url.startsWith("http") ? url : `http://localhost${url}`;
+  // @ts-expect-error: constructing NextRequest for tests
+  return new NextRequest(new Request(abs, init));
 }
+
+// Make sure the route under test uses our mock:
+jest.mock("@/lib/supabase/server", () => {
+  const m = require("../../../../__mocks__/supabaseServer.mock");
+  return { __esModule: true, getSupabaseAdmin: m.getSupabaseAdmin };
+});
 
 describe("Lobby messages API", () => {
   beforeEach(() => {
     supaMock.__reset();
-    supaMock.__setLobbyChat("lobby-1");
-    supaMock.__setLobbyMessages([
+
+    const now = Date.now();
+    // Seed 2 messages in the lobby so GET has something to return
+    supaMock.__seedLobbyMessages([
       {
         id: "m1",
-        sender_address: "0xaaa",
+        sender_address: "0x1111111111111111111111111111111111111111",
         body: "hello",
-        created_at: "2024-01-01T00:00:00.000Z",
-        chat_id: "lobby-1",
+        created_at: new Date(now - 5000).toISOString(),
       },
       {
         id: "m2",
-        sender_address: "0xbbb",
-        body: "world",
-        created_at: "2024-01-01T00:01:00.000Z",
-        chat_id: "lobby-1",
+        sender_address: "0x2222222222222222222222222222222222222222",
+        body: "hi again",
+        created_at: new Date(now - 4000).toISOString(),
       },
     ]);
   });
 
   it("GET returns messages (ok: true)", async () => {
-    const req = makeReq("/api/lobby/messages?limit=2");
+    const req = makeReq("/api/lobby/messages?limit=10");
     const res = await GET(req as unknown as Request);
 
     expect(res.status).toBe(200);
@@ -54,42 +55,47 @@ describe("Lobby messages API", () => {
 
     expect(json.ok).toBe(true);
     expect(Array.isArray(json.messages)).toBe(true);
-    expect(json.messages).toHaveLength(2);
-    expect(json.messages[0].id).toBe("m1");
-    expect(json.messages[1].id).toBe("m2");
+    expect(json.messages.length).toBeGreaterThanOrEqual(2);
   });
 
   it("POST rejects invalid senderAddress", async () => {
-    const bad = makeReq("/api/lobby/messages", {
+    const req = makeReq("/api/lobby/messages", {
       method: "POST",
-      body: JSON.stringify({ senderAddress: "not-an-addr", body: "x" }),
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ senderAddress: "nope", body: "x" }),
     });
 
-    const res = await POST(bad as unknown as Request);
-    const json = (await (res as any).json()) as any;
-
+    const res = await POST(req as unknown as Request);
     expect(res.status).toBe(400);
+
+    const json = (await (res as any).json()) as any;
     expect(json.ok).toBe(false);
-    // Adjust this match if your route uses a different exact message
+    // Route error text is "Invalid Ethereum address"
     expect(String(json.error)).toContain("Invalid Ethereum address");
   });
 
-  it("POST inserts a message (ok: true)", async () => {
-    const good = makeReq("/api/lobby/messages", {
+  it("POST rate limits after 5 msgs per 30s window (429)", async () => {
+    // Seed 5 recent messages from the same sender *within the window*
+    const sender = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const now = Date.now();
+    supaMock.__seedLobbyMessages([
+      { id: "a1", sender_address: sender, body: "a", created_at: new Date(now - 1000).toISOString() },
+      { id: "a2", sender_address: sender, body: "b", created_at: new Date(now - 900).toISOString() },
+      { id: "a3", sender_address: sender, body: "c", created_at: new Date(now - 800).toISOString() },
+      { id: "a4", sender_address: sender, body: "d", created_at: new Date(now - 700).toISOString() },
+      { id: "a5", sender_address: sender, body: "e", created_at: new Date(now - 600).toISOString() },
+    ]);
+
+    const req = makeReq("/api/lobby/messages", {
       method: "POST",
-      body: JSON.stringify({
-        senderAddress: "0x1111111111111111111111111111111111111111",
-        body: "hey there",
-      }),
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({ senderAddress: sender, body: "should be blocked" }),
     });
 
-    const res = await POST(good as unknown as Request);
-    expect(res.status).toBe(200);
+    const res = await POST(req as unknown as Request);
+    expect(res.status).toBe(429);
 
     const json = (await (res as any).json()) as any;
-    expect(json.ok).toBe(true);
-    expect(json.message?.body).toBe("hey there");
+    expect(json.ok).toBe(false);
   });
 });

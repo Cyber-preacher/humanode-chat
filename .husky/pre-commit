@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Husky v10
+pnpm exec lint-staged

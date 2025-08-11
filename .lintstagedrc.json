@@ -1,0 +1,8 @@
+{
+  "apps/web/**/*.{js,jsx,ts,tsx}": [
+    "pnpm --filter web exec eslint --max-warnings=0 --fix"
+  ],
+  "apps/web/**/*.{json,md,yml,yaml}": [
+    "pnpm exec prettier --write"
+  ]
+}

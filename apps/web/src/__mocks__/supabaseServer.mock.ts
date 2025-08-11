@@ -1,150 +1,164 @@
-// A minimal, awaitable Supabase server mock that supports the exact
-// query chains used by the lobby route (GET + POST).
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * Minimal, route-aware Supabase mock for the Lobby API tests.
+ * - Supports:
+ *   - from('chats').select('id').eq('slug','lobby').single()
+ *   - from('messages').select(...).eq().gt().order().limit() -> { data, error }
+ *   - from('messages').select('*', { count:'exact', head:true }).eq().gt() -> { count, error }
+ *   - from('messages').insert(row).select().single() -> { data, error }
+ * - Exposes helpers to seed/reset data for tests.
+ */
 
-export type Message = {
+type Chat = { id: string; slug: string };
+type Message = {
   id: string;
+  chat_id: string;
   sender_address: string;
   body: string;
   created_at: string;
-  chat_id: string;
 };
 
 const state = {
-  chatId: "lobby-1",
+  chats: [] as Chat[],
   messages: [] as Message[],
 };
 
-export function __reset() {
-  state.chatId = "lobby-1";
+function __reset() {
+  state.chats = [{ id: "lobby-1", slug: "lobby" }];
   state.messages = [];
 }
 
-export function __setLobbyChat(id: string) {
-  state.chatId = id;
+function __setLobby(chat: Chat) {
+  const i = state.chats.findIndex((c) => c.slug === "lobby");
+  if (i >= 0) state.chats[i] = chat;
+  else state.chats.push(chat);
 }
 
-export function __setLobbyMessages(arr: Message[]) {
-  state.messages = arr.slice();
+function __setMessages(msgs: Message[]) {
+  state.messages = msgs.map((m) => ({ ...m }));
 }
 
-// The app imports { getSupabaseServer } from '@/lib/supabase/server'
-export function getSupabaseServer() {
+function __seedLobbyMessages(msgs: Omit<Message, "chat_id">[]) {
+  const lobby = state.chats.find((c) => c.slug === "lobby") ?? { id: "lobby-1", slug: "lobby" };
+  __setLobby(lobby);
+  state.messages = msgs.map((m, i) => ({
+    id: m.id ?? `m${i + 1}`,
+    chat_id: lobby.id,
+    sender_address: m.sender_address,
+    body: m.body,
+    created_at: m.created_at,
+  }));
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function filterMessages(chain: any) {
+  let list = state.messages.slice();
+  for (const f of chain._filters) {
+    if (f.op === "eq") list = list.filter((m: any) => String(m[f.col]) === String(f.val));
+    if (f.op === "gt") list = list.filter((m: any) => String(m[f.col]) > String(f.val));
+  }
+  if (chain._order) {
+    const { col, ascending } = chain._order;
+    list.sort((a: any, b: any) => {
+      if (a[col] < b[col]) return ascending ? -1 : 1;
+      if (a[col] > b[col]) return ascending ? 1 : -1;
+      return 0;
+    });
+  }
+  if (typeof chain._limit === "number") list = list.slice(0, chain._limit);
+  return list;
+}
+
+function getSupabaseAdmin() {
   return {
-    from(table: string) {
-      const ctx: any = {
-        table,
-        _select: null as null | string,
-        _filters: [] as Array<{ col: string; val: unknown }>,
-        _order: null as null | { col: string; opts?: { ascending?: boolean } },
-        _limit: null as null | number,
-        _single: false,
-        _insert: null as null | Record<string, unknown> | Record<string, unknown>[],
-      };
+    from(table: "chats" | "messages") {
+      const chain: any = {
+        _table: table,
+        _filters: [] as any[],
+        _order: null as null | { col: string; ascending: boolean },
+        _limit: undefined as number | undefined,
+        _selectCount: false,
+        _head: false,
+        _columns: null as null | string,
 
-      const api: any = {
-        select(cols: string) {
-          ctx._select = cols;
-          return api;
+        select(cols: string, opts?: { count?: "exact"; head?: boolean }) {
+          this._columns = cols;
+          if (opts?.count) this._selectCount = true;
+          if (opts?.head) this._head = true;
+          return this;
         },
-        eq(col: string, val: unknown) {
-          ctx._filters.push({ col, val });
-          return api;
+        eq(col: string, val: any) {
+          this._filters.push({ op: "eq", col, val });
+          return this;
         },
-        order(col: string, opts?: { ascending?: boolean }) {
-          ctx._order = { col, opts };
-          return api;
+        gt(col: string, val: any) {
+          this._filters.push({ op: "gt", col, val });
+          return this;
+        },
+        order(col: string, options?: { ascending?: boolean }) {
+          this._order = { col, ascending: options?.ascending !== false };
+          return this;
         },
         limit(n: number) {
-          ctx._limit = n;
-          return api;
+          this._limit = n;
+          return this;
         },
-        single() {
-          ctx._single = true;
-          return api;
+        async single() {
+          if (table === "chats") {
+            const found = state.chats.find((c) => this._filters.every((f: any) => (c as any)[f.col] === f.val));
+            if (!found) return { data: null, error: new Error("Not found") };
+            return { data: found, error: null };
+          }
+          if (table === "messages") {
+            const list = filterMessages(this);
+            const one = list[0];
+            return { data: one ?? null, error: one ? null : new Error("Not found") };
+          }
+          return { data: null, error: new Error("Unknown table") };
         },
-        insert(payload: Record<string, unknown> | Record<string, unknown>[]) {
-          ctx._insert = payload;
-          return api;
+        insert(row: Partial<Message>) {
+          const id = row.id ?? `m${state.messages.length + 1}`;
+          const created_at = row.created_at ?? nowIso();
+          const msg: Message = {
+            id: String(id),
+            chat_id: String(row.chat_id),
+            sender_address: String(row.sender_address),
+            body: String(row.body),
+            created_at,
+          };
+          state.messages.push(msg);
+          return {
+            select: () => ({
+              single: async () => ({ data: msg, error: null }),
+            }),
+          };
         },
 
-        // Make the chain awaitable: `await supa.from(...).select(...).eq(...);`
-        async then(resolve: (v: any) => void, reject: (e: unknown) => void) {
-          try {
-            const out = await exec();
-            resolve(out);
-          } catch (e) {
-            reject(e);
+        // Make the whole chain awaitable. Awaiting it resolves to the expected shape
+        // based on whether we're counting or fetching rows.
+        then(resolve: (v: any) => void) {
+          if (table === "messages" && this._selectCount && this._head) {
+            const list = filterMessages(this);
+            resolve({ count: list.length, error: null });
+            return;
           }
+          if (table === "messages") {
+            const list = filterMessages(this);
+            resolve({ data: list, error: null });
+            return;
+          }
+          // default no-op
+          resolve({ data: null, error: null });
         },
       };
 
-      async function exec(): Promise<{ data: any; error: null | Error }> {
-        if (ctx.table === "chats") {
-          // Only path used: .select("id").eq("slug","lobby").single()
-          if (!ctx._single) {
-            return { data: [{ id: state.chatId }], error: null };
-          }
-          return { data: { id: state.chatId }, error: null };
-        }
-
-        if (ctx.table === "messages") {
-          // Handle INSERT path: .insert({...}).select().single()
-          if (ctx._insert) {
-            const rows = Array.isArray(ctx._insert) ? ctx._insert : [ctx._insert];
-            const inserted = rows.map((r) => ({
-              id: `m${Date.now()}${Math.random().toString(16).slice(2)}`,
-              created_at: new Date().toISOString(),
-              chat_id: state.chatId,
-              sender_address: String((r as any).sender_address ?? ""),
-              body: String((r as any).body ?? ""),
-            })) as Message[];
-
-            state.messages.push(...inserted);
-
-            if (ctx._single) {
-              return { data: inserted[0], error: null };
-            }
-            return { data: inserted, error: null };
-          }
-
-          // Handle SELECT path: .select(...).eq("chat_id", chatId).order(...).limit(n)
-          let rows = state.messages.slice();
-
-          if (ctx._filters.length) {
-            rows = rows.filter((m) =>
-              ctx._filters.every((f) => (m as any)[f.col] === f.val)
-            );
-          }
-
-          if (ctx._order) {
-            const asc = ctx._order.opts?.ascending !== false;
-            rows.sort((a: any, b: any) => {
-              const av = a[ctx._order!.col];
-              const bv = b[ctx._order!.col];
-              if (av === bv) return 0;
-              return av < bv ? (asc ? -1 : 1) : (asc ? 1 : -1);
-            });
-          }
-
-          if (typeof ctx._limit === "number") {
-            rows = rows.slice(0, ctx._limit);
-          }
-
-          return { data: rows, error: null };
-        }
-
-        return { data: null, error: new Error("unknown table") };
-      }
-
-      return api;
+      return chain;
     },
   };
 }
 
-export default {
-  getSupabaseServer,
-  __reset,
-  __setLobbyChat,
-  __setLobbyMessages,
-  __state: state,
-};
+export { getSupabaseAdmin, __reset, __setLobby, __setMessages, __seedLobbyMessages, state };
+export default { getSupabaseAdmin, __reset, __setLobby, __setMessages, __seedLobbyMessages, state };
