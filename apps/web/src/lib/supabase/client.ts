@@ -1,15 +1,8 @@
 // apps/web/src/lib/supabase/client.ts
-'use client';
+import { createClient } from "@supabase/supabase-js";
+import { getClientEnv } from "@/env";
 
-import { createClient } from '@supabase/supabase-js';
+// The public client for browser use
+const { NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY } = getClientEnv();
 
-export function getSupabaseBrowser() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
-  if (!url || !anon) {
-    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
-  }
-  return createClient(url, anon, {
-    auth: { persistSession: false },
-  });
-}
+export const supabase = createClient(NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY);
