@@ -43,5 +43,10 @@
       "pnpm --filter web typecheck --noEmit --pretty false"
     ],
     "*.{json,md,yml,yaml}": "prettier --write"
-  }
+  },
+  "engines": {
+    "node": ">=18.17 <23",
+    "pnpm": ">=8 <11"
+  },
+  "packageManager": "pnpm@10.14.0"
 }
