@@ -6,8 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "jest",
+    "test:ci": "jest --ci --runInBand",
+    "test:watch": "jest --watch",
     "seed": "node ./scripts/seed.mjs",
-    "lint": "next lint"
+    "lint": "eslint --max-warnings=0"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -24,14 +27,20 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@swc/jest": "^0.2.39",
     "@tailwindcss/postcss": "^4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.2.1",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
+    "jest": "^30.0.5",
+    "jest-environment-jsdom": "^30.0.5",
+    "jest-environment-node": "^30.0.5",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.1",
     "typescript": "^5"
   }
 }
