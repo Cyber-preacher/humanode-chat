@@ -1,45 +1,53 @@
 @"
-# Normalize all text files to LF in the repo
-* text=auto eol=lf
+# --- Default: let Git detect text; we’ll pin endings per type below
+*               text=auto
 
-# Windows / shell scripts
-*.bat text eol=crlf
-*.cmd text eol=crlf
-*.ps1 text eol=crlf
-*.sh  text eol=lf
+# --- Source code: force LF in repo
+*.js            text eol=lf
+*.jsx           text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.css           text eol=lf
+*.scss          text eol=lf
+*.md            text eol=lf
+*.html          text eol=lf
+*.sh            text eol=lf
+*.env           text eol=lf
+*.env.*         text eol=lf
 
-# Lockfiles stay LF (helps diffs)
-pnpm-lock.yaml text eol=lf
-yarn.lock      text eol=lf
-package-lock.json text eol=lf
+# Next/JS project files
+.next/**        -text
+dist/**         -text
+build/**        -text
 
-# Common text file types (explicit, but optional)
-*.{js,jsx,ts,tsx,css,scss,md,mdx,html,xml,json,yml,yaml,env} text
+# Husky shell hooks should be LF
+.husky/*        text eol=lf
 
-# Binaries
-*.png  binary
-*.jpg  binary
-*.jpeg binary
-*.gif  binary
-*.webp binary
-*.ico  binary
-*.pdf  binary
-*.zip  binary
-*.gz   binary
-*.mp4  binary
-*.mov  binary
-*.mp3  binary
-*.wav  binary
-*.woff binary
-*.woff2 binary
-*.eot  binary
-*.ttf  binary
-*.otf  binary
+# Windows scripts: keep CRLF
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
 
-# Don't include build artifacts in git archives
-node_modules/    export-ignore
-dist/            export-ignore
-build/           export-ignore
-apps/web/.next/  export-ignore
-artifacts/       export-ignore
+# Images / fonts / binaries
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.webp          binary
+*.ico           binary
+*.pdf           binary
+*.zip           binary
+*.gz            binary
+*.mp4           binary
+*.mov           binary
+*.ttf           binary
+*.otf           binary
+*.eot           binary
+*.woff          binary
+*.woff2         binary
 "@ | Set-Content .gitattributes -Encoding ascii
