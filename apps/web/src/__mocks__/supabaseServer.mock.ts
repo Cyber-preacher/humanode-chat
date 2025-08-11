@@ -24,12 +24,12 @@ const state = {
 };
 
 function __reset() {
-  state.chats = [{ id: "lobby-1", slug: "lobby" }];
+  state.chats = [{ id: 'lobby-1', slug: 'lobby' }];
   state.messages = [];
 }
 
 function __setLobby(chat: Chat) {
-  const i = state.chats.findIndex((c) => c.slug === "lobby");
+  const i = state.chats.findIndex((c) => c.slug === 'lobby');
   if (i >= 0) state.chats[i] = chat;
   else state.chats.push(chat);
 }
@@ -38,8 +38,8 @@ function __setMessages(msgs: Message[]) {
   state.messages = msgs.map((m) => ({ ...m }));
 }
 
-function __seedLobbyMessages(msgs: Omit<Message, "chat_id">[]) {
-  const lobby = state.chats.find((c) => c.slug === "lobby") ?? { id: "lobby-1", slug: "lobby" };
+function __seedLobbyMessages(msgs: Omit<Message, 'chat_id'>[]) {
+  const lobby = state.chats.find((c) => c.slug === 'lobby') ?? { id: 'lobby-1', slug: 'lobby' };
   __setLobby(lobby);
   state.messages = msgs.map((m, i) => ({
     id: m.id ?? `m${i + 1}`,
@@ -57,8 +57,8 @@ function nowIso() {
 function filterMessages(chain: any) {
   let list = state.messages.slice();
   for (const f of chain._filters) {
-    if (f.op === "eq") list = list.filter((m: any) => String(m[f.col]) === String(f.val));
-    if (f.op === "gt") list = list.filter((m: any) => String(m[f.col]) > String(f.val));
+    if (f.op === 'eq') list = list.filter((m: any) => String(m[f.col]) === String(f.val));
+    if (f.op === 'gt') list = list.filter((m: any) => String(m[f.col]) > String(f.val));
   }
   if (chain._order) {
     const { col, ascending } = chain._order;
@@ -68,13 +68,13 @@ function filterMessages(chain: any) {
       return 0;
     });
   }
-  if (typeof chain._limit === "number") list = list.slice(0, chain._limit);
+  if (typeof chain._limit === 'number') list = list.slice(0, chain._limit);
   return list;
 }
 
 function getSupabaseAdmin() {
   return {
-    from(table: "chats" | "messages") {
+    from(table: 'chats' | 'messages') {
       const chain: any = {
         _table: table,
         _filters: [] as any[],
@@ -84,18 +84,18 @@ function getSupabaseAdmin() {
         _head: false,
         _columns: null as null | string,
 
-        select(cols: string, opts?: { count?: "exact"; head?: boolean }) {
+        select(cols: string, opts?: { count?: 'exact'; head?: boolean }) {
           this._columns = cols;
           if (opts?.count) this._selectCount = true;
           if (opts?.head) this._head = true;
           return this;
         },
         eq(col: string, val: any) {
-          this._filters.push({ op: "eq", col, val });
+          this._filters.push({ op: 'eq', col, val });
           return this;
         },
         gt(col: string, val: any) {
-          this._filters.push({ op: "gt", col, val });
+          this._filters.push({ op: 'gt', col, val });
           return this;
         },
         order(col: string, options?: { ascending?: boolean }) {
@@ -107,17 +107,19 @@ function getSupabaseAdmin() {
           return this;
         },
         async single() {
-          if (table === "chats") {
-            const found = state.chats.find((c) => this._filters.every((f: any) => (c as any)[f.col] === f.val));
-            if (!found) return { data: null, error: new Error("Not found") };
+          if (table === 'chats') {
+            const found = state.chats.find((c) =>
+              this._filters.every((f: any) => (c as any)[f.col] === f.val)
+            );
+            if (!found) return { data: null, error: new Error('Not found') };
             return { data: found, error: null };
           }
-          if (table === "messages") {
+          if (table === 'messages') {
             const list = filterMessages(this);
             const one = list[0];
-            return { data: one ?? null, error: one ? null : new Error("Not found") };
+            return { data: one ?? null, error: one ? null : new Error('Not found') };
           }
-          return { data: null, error: new Error("Unknown table") };
+          return { data: null, error: new Error('Unknown table') };
         },
         insert(row: Partial<Message>) {
           const id = row.id ?? `m${state.messages.length + 1}`;
@@ -140,12 +142,12 @@ function getSupabaseAdmin() {
         // Make the whole chain awaitable. Awaiting it resolves to the expected shape
         // based on whether we're counting or fetching rows.
         then(resolve: (v: any) => void) {
-          if (table === "messages" && this._selectCount && this._head) {
+          if (table === 'messages' && this._selectCount && this._head) {
             const list = filterMessages(this);
             resolve({ count: list.length, error: null });
             return;
           }
-          if (table === "messages") {
+          if (table === 'messages') {
             const list = filterMessages(this);
             resolve({ data: list, error: null });
             return;
