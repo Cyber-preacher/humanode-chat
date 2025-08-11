@@ -1,0 +1,29 @@
+# Dependencies / caches
+node_modules/
+**/.turbo/
+**/.vercel/
+**/.cache/
+**/.swc/
+
+# Next.js & other builds
+**/.next/
+**/dist/
+**/build/
+out/
+coverage/
+
+# Hardhat & chain artifacts
+artifacts/
+deployments/
+cache/
+
+# Logs
+*.log
+
+# Lock files (don?t rewrite)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# GitHub configs (optional; leave ignored if you had YAML quirks)
+.github/
