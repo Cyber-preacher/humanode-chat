@@ -1,14 +1,16 @@
-ï»¿import type { NextConfig } from "next";
+// apps/web/next.config.ts
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-    reactStrictMode: false,
-    webpack: (config: any) => {
+    experimental: {
+        typedRoutes: true,
+    },
+    webpack: (config) => {
+        // Don’t try to bundle the CLI pretty-printer into the browser
         config.resolve = config.resolve || {};
         config.resolve.alias = {
             ...(config.resolve.alias || {}),
-            "pino-pretty": false,
-            lokijs: false,
-            encoding: false,
+            'pino-pretty': false,
         };
         return config;
     },
