@@ -1,4 +1,4 @@
-# Humanode Chat —  README
+# Humanode Chat — Contributor-friendly README
 
 Welcome! This repo is a small monorepo:
 
