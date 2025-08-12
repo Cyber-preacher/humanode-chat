@@ -207,7 +207,7 @@ Run this in **Supabase SQL editor** once:
 
 ---
 
-## Contributing
+## Linting & formatting
 
 ### Branching model
 - Protected **`dev`** branch.
