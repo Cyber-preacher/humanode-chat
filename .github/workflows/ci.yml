@@ -1,32 +1,42 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
   push:
-    branches: [main, dev]
   pull_request:
-    branches: [main, dev]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # uses your .nvmrc if present; fallback to 20 if you prefer:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      # ⬇️ This is the key piece for B)
-      - run: pnpm -w install --frozen-lockfile=false
+      - name: Prettier check
+        run: pnpm -w run format:check
 
-      - run: pnpm -w run format:check
+      # Optional: uncomment if you want ESLint to gate CI
+      # - name: Lint (web)
+      #   run: pnpm --filter web run lint
 
-      # Optional: run tests/build
-      - run: pnpm -r test --if-present
-      - run: pnpm --filter web build
+      - name: Test (web)
+        run: pnpm --filter web test -- --ci --runInBand
+
+      - name: Build (web)
+        run: pnpm --filter web build
