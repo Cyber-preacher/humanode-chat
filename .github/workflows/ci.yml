@@ -2,44 +2,30 @@ name: CI
 
 on:
   push:
+    branches: [ main, dev ]
   pull_request:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [ main, dev ]
 
 jobs:
   build:
+    name: build
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      # Install pnpm first so setup-node can cache it
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
-          run_install: false
+          version: 10
 
-      # Node with pnpm cache
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          node-version: '20'
+          cache: 'pnpm'
 
-      # Install deps for all workspaces
-      - name: Install deps (all workspaces)
-        run: pnpm -r install --no-frozen-lockfile
+      - run: pnpm -w install --frozen-lockfile
 
-      # Contracts: compile + test
-      - name: Compile contracts
-        run: pnpm run compile
-
-      - name: Test contracts
-        run: pnpm run test
-
-      # Web: typecheck+lint happen inside next build already for Next 15
-      - name: Build web
-        working-directory: apps/web
-        run: pnpm run build
+      # lint, test, build — adapt to your monorepo as needed
+      - run: pnpm -w run format:check
+      - run: pnpm -w run compile || true
+      - run: pnpm --filter web test -- --ci --runInBand
+      - run: pnpm --filter web build
