@@ -30,7 +30,8 @@
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "hardhat": "^2.26.1",
     "husky": "^9.1.7",
-    "lint-staged": "^16.1.5"
+    "lint-staged": "^16.1.5",
+    "prettier": "2.8.8"
   },
   "dependencies": {
     "@biomapper-sdk/core": "^0.4.0",
