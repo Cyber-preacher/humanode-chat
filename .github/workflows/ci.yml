@@ -27,17 +27,18 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
-      - name: Install (workspace)
-        run: pnpm -w install --frozen-lockfile=false
+      # ⬇️ Install ALL workspace packages (creates node_modules for each)
+      - name: Install (recursive)
+        run: pnpm -r install --frozen-lockfile=false
 
       - name: Prettier check
         run: pnpm -w run format:check
 
-      # Only run the web tests (avoid Hardhat tests in CI for now)
+      # ⬇️ Run web tests via exec so jest resolves from web's devDependencies
       - name: Test (web)
-        run: pnpm --filter web test -- --ci
+        run: pnpm --filter web exec jest --ci
 
-      # Build web with safe dummy env (satisfies zod + Next build)
+      # ⬇️ Build web with safe dummy env to satisfy zod/Next
       - name: Build (web)
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
