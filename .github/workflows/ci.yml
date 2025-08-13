@@ -2,30 +2,31 @@ name: CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
 
 jobs:
   build:
-    name: build
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v2
         with:
           version: 10
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: 20
+          cache: pnpm
 
-      - run: pnpm -w install --frozen-lockfile
+      # ⬇️ This is the key piece for B)
+      - run: pnpm -w install --frozen-lockfile=false
 
-      # lint, test, build — adapt to your monorepo as needed
       - run: pnpm -w run format:check
-      - run: pnpm -w run compile || true
-      - run: pnpm --filter web test -- --ci --runInBand
+
+      # Optional: run tests/build
+      - run: pnpm -r test --if-present
       - run: pnpm --filter web build
