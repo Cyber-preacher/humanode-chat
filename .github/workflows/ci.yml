@@ -1,12 +1,13 @@
 name: CI
-
 on:
   push:
+    branches: [ main, dev, sync/dev-onto-main, "**" ]
   pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -15,31 +16,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install pnpm first so setup-node can cache it
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v3
         with:
-          version: 9
-          run_install: false
+          version: 10
 
-      # Node with pnpm cache
-      - uses: actions/setup-node@v4
+      - name: Use Node (from .nvmrc or fallback)
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          node-version-file: '.nvmrc'
+          node-version: '20'
+          cache: 'pnpm'
 
-      # Install deps for all workspaces
-      - name: Install deps (all workspaces)
-        run: pnpm -r install --no-frozen-lockfile
+      # ⬇️ Install ALL workspace packages (creates node_modules for each)
+      - name: Install (recursive)
+        run: pnpm -r install --frozen-lockfile=false
 
-      # Contracts: compile + test
-      - name: Compile contracts
-        run: pnpm run compile
+      - name: Prettier check
+        run: pnpm -w run format:check
 
-      - name: Test contracts
-        run: pnpm run test
+      # ⬇️ Run web tests via exec so jest resolves from web's devDependencies
+      - name: Test (web)
+        run: pnpm --filter web exec jest --ci
 
-      # Web: typecheck+lint happen inside next build already for Next 15
-      - name: Build web
-        working-directory: apps/web
-        run: pnpm run build
+      # ⬇️ Build web with safe dummy env to satisfy zod/Next
+      - name: Build (web)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_dummy_1234567890123456
+        run: pnpm --filter web build

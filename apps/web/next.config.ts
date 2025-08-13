@@ -2,18 +2,18 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-    experimental: {
-        typedRoutes: true,
-    },
-    webpack: (config) => {
-        // Don’t try to bundle the CLI pretty-printer into the browser
-        config.resolve = config.resolve || {};
-        config.resolve.alias = {
-            ...(config.resolve.alias || {}),
-            'pino-pretty': false,
-        };
-        return config;
-    },
+  eslint: { ignoreDuringBuilds: false },
+  typescript: { ignoreBuildErrors: false },
+  experimental: { typedRoutes: true },
+  webpack: (config) => {
+    // silence optional dependency resolution for walletconnect's pino-pretty
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      'pino-pretty': false,
+    } as Record<string, false | string>;
+    return config;
+  },
 };
 
 export default nextConfig;
