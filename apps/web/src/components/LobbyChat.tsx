@@ -52,20 +52,18 @@ export default function LobbyChat() {
     if (!lobbyChatId) return;
 
     const supa = getSupabaseBrowser();
-    const channel = supa
-      .channel('realtime:public:messages:lobby')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `chat_id=eq.${lobbyChatId}`,
-        },
-        (payload: RealtimePostgresInsertPayload<Message>) => {
-          setMessages((prev) => [...prev, payload.new]);
-        }
-      );
+    const channel = supa.channel('realtime:public:messages:lobby').on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `chat_id=eq.${lobbyChatId}`,
+      },
+      (payload: RealtimePostgresInsertPayload<Message>) => {
+        setMessages((prev) => [...prev, payload.new]);
+      }
+    );
 
     channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') console.log('[realtime] subscribed to lobby messages');
