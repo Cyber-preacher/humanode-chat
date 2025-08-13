@@ -59,7 +59,7 @@ export default function ChatView({ chatSlug }: Props) {
     setSending(true);
     try {
       const msg = await postMessage(slug, { senderAddress, body });
-      setMessages(prev => [...prev, msg]);
+      setMessages((prev) => [...prev, msg]);
       setText('');
     } catch (e) {
       alert('Failed to send message. Please try again.');
@@ -82,7 +82,7 @@ export default function ChatView({ chatSlug }: Props) {
           <div className="text-sm text-gray-500">No messages yet.</div>
         ) : (
           <ul className="space-y-2">
-            {messages.map(m => (
+            {messages.map((m) => (
               <li key={m.id} className="rounded-md bg-gray-50 p-2">
                 <div className="text-xs text-gray-500">
                   {m.sender_address} · {new Date(m.created_at).toLocaleString()}
@@ -100,8 +100,8 @@ export default function ChatView({ chatSlug }: Props) {
           className="flex-1 rounded-md border px-3 py-2"
           placeholder="Type a message…"
           value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => {
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               void handleSend();

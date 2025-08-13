@@ -94,8 +94,7 @@ export function requireGetChatMessages(
   chatSlug: string,
   optsOrLimit?: { limit?: number } | number
 ): Promise<ChatMessage[]> {
-  const opts =
-    typeof optsOrLimit === 'number' ? { limit: optsOrLimit } : optsOrLimit ?? undefined;
+  const opts = typeof optsOrLimit === 'number' ? { limit: optsOrLimit } : optsOrLimit ?? undefined;
   return fetchMessages(chatSlug, opts);
 }
 

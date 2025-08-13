@@ -16,9 +16,7 @@ type Chat = {
  */
 export default function ChatList() {
   // Only need the value for now; drop the setter to avoid no-unused-vars
-  const [chats] = useState<Chat[]>([
-    { id: 'lobby', slug: 'lobby', title: 'Lobby' },
-  ]);
+  const [chats] = useState<Chat[]>([{ id: 'lobby', slug: 'lobby', title: 'Lobby' }]);
 
   return (
     <div className="flex flex-col gap-2">

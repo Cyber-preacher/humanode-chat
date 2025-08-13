@@ -8,7 +8,11 @@ const GetQuery = z.object({
 
 const PostBody = z.object({
   senderAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-  body: z.string().trim().min(1, 'Message cannot be empty').max(2000, 'Message too long (max 2000 chars)'),
+  body: z
+    .string()
+    .trim()
+    .min(1, 'Message cannot be empty')
+    .max(2000, 'Message too long (max 2000 chars)'),
 });
 
 const RATE_LIMIT_WINDOW_SEC = 30;
@@ -23,7 +27,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 },
+        { status: 400 }
       );
     }
     const { limit } = parsed.data;
@@ -31,7 +35,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const supa = getSupabaseAdmin();
 
     // Find chat by slug
-    const { data: chat, error: chatErr } = await supa.from('chats').select('id').eq('slug', id).single();
+    const { data: chat, error: chatErr } = await supa
+      .from('chats')
+      .select('id')
+      .eq('slug', id)
+      .single();
     if (chatErr || !chat) throw chatErr || new Error('Chat not found');
 
     const { data, error } = await supa
@@ -59,7 +67,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -69,7 +77,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const supa = getSupabaseAdmin();
 
     // Find chat by slug
-    const { data: chat, error: chatErr } = await supa.from('chats').select('id').eq('slug', id).single();
+    const { data: chat, error: chatErr } = await supa
+      .from('chats')
+      .select('id')
+      .eq('slug', id)
+      .single();
     if (chatErr || !chat) throw chatErr || new Error('Chat not found');
 
     // Rate limit per sender per chat
@@ -89,7 +101,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           ok: false,
           error: `Rate limit exceeded. Please wait a bit (≤ ${RATE_LIMIT_MAX} msgs / ${RATE_LIMIT_WINDOW_SEC}s).`,
         },
-        { status: 429 },
+        { status: 429 }
       );
     }
 

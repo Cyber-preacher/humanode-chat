@@ -1,13 +1,17 @@
 <<<<<<< HEAD
+
 # Humanode Chat — Contributor-friendly README
+
 =======
 chore/release-drafter-triggers
 [![CI](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml/badge.svg)](…)
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+
+> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
 Welcome! This repo is a small monorepo:
 
 <<<<<<< HEAD
+
 ```
 humanode-chat/
 ├─ apps/
@@ -22,8 +26,8 @@ humanode-chat/
 └─ package.json           # workspace root scripts
 ```
 
-> **Package manager:** pnpm. On Windows, use `pnpm.cmd` instead of `pnpm` in terminals that require it.
-=======
+> # **Package manager:** pnpm. On Windows, use `pnpm.cmd` instead of `pnpm` in terminals that require it.
+
 ## Humanode-chat
 
 Humanode-chat
@@ -65,39 +69,43 @@ Humanode-gated chat prototype:
 - Address **Router** + auto-sync so you don’t copy/paste contract addresses ever again
 
 > Status: early preview (`v0.1.x`). Contributions welcome!
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+>
+> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
 ---
 
 ## Features
 
-* Lobby chat page (`/lobby`)
-* API routes
+- Lobby chat page (`/lobby`)
+- API routes
 
 <<<<<<< HEAD
-  * `GET /api/health` – quick health check `{ ok: true }`
-  * `GET /api/lobby/messages?limit=n` – list recent lobby messages
-  * `POST /api/lobby/messages` – add a message
-=======
-- Node.js 20.x
-- pnpm 9.x
-- Metamask (or WalletConnect) on **Humanode Testnet-5** (Chain ID `14853`)
-- Supabase project (free tier OK)
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
-    * Body: `{ senderAddress: "0x…40 hex…", body: "text" }`
-    * Rate limit: **max 5 msgs / 30s per address** (429 on exceed)
-* Supabase data layer (typed env validation)
-* Jest tests for the lobby API
-* Prettier + ESLint + Husky + lint-staged
+- `GET /api/health` – quick health check `{ ok: true }`
+- `GET /api/lobby/messages?limit=n` – list recent lobby messages
+- # `POST /api/lobby/messages` – add a message
+
+* Node.js 20.x
+* pnpm 9.x
+* Metamask (or WalletConnect) on **Humanode Testnet-5** (Chain ID `14853`)
+* Supabase project (free tier OK)
+
+  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+
+      * Body: `{ senderAddress: "0x…40 hex…", body: "text" }`
+      * Rate limit: **max 5 msgs / 30s per address** (429 on exceed)
+
+- Supabase data layer (typed env validation)
+- Jest tests for the lobby API
+- Prettier + ESLint + Husky + lint-staged
 
 ---
 
 ## Prerequisites
 
-* **Node.js** ≥ 18.17 (< 23 recommended). The repo includes `.nvmrc` for Node 20.
-* **pnpm** ≥ 8 (we use 10.x locally). Install: `npm i -g pnpm`.
-* **Supabase project** (URL + anon key + service role key).
+- **Node.js** ≥ 18.17 (< 23 recommended). The repo includes `.nvmrc` for Node 20.
+- **pnpm** ≥ 8 (we use 10.x locally). Install: `npm i -g pnpm`.
+- **Supabase project** (URL + anon key + service role key).
 
 ---
 
@@ -116,8 +124,8 @@ pnpm.cmd install
 
 Copy `.env.example` to **both** of these locations and fill values:
 
-* Root (for scripts, optional): `./.env`
-* Web app: `./apps/web/.env.local`
+- Root (for scripts, optional): `./.env`
+- Web app: `./apps/web/.env.local`
 
 Required keys for the web app:
 
@@ -134,8 +142,11 @@ SUPABASE_SERVICE_ROLE_KEY="..."
 > The web app performs Zod validation via `apps/web/src/env.ts` and will error clearly if something is missing.
 
 <<<<<<< HEAD
+
 ### 3) Run the app
+
 =======
+
 ```
 # WalletConnect / Biomapper
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
@@ -234,7 +245,8 @@ for insert with check (
 > The API route uses the **service role** on the server, but RLS makes the schema safe even if you later do client-side reads.
 
 ### 5) Run the app
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+
+> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
 ```bash
 # Dev mode (Next.js)
@@ -249,6 +261,7 @@ pnpm.cmd --filter web dev
 ### 4) (Optional) Seed sample data
 
 <<<<<<< HEAD
+
 ```bash
 # macOS/Linux
 pnpm --filter web run seed
@@ -265,31 +278,34 @@ pnpm.cmd --filter web run seed
 ## Project Structure
 
 ```
+
 .
-├─ contracts/                  # Solidity (ProfileRegistry, ChatRegistry, AddressRouter)
-├─ scripts/                    # Hardhat deploy + sync scripts
-│  ├─ deploy_router.js
-│  ├─ deploy_profile.js
-│  ├─ deploy_chat.js
-│  └─ sync-addresses.js
-├─ deployments/                # Auto-written networks JSON (source of truth for addresses)
+├─ contracts/ # Solidity (ProfileRegistry, ChatRegistry, AddressRouter)
+├─ scripts/ # Hardhat deploy + sync scripts
+│ ├─ deploy*router.js
+│ ├─ deploy_profile.js
+│ ├─ deploy_chat.js
+│ └─ sync-addresses.js
+├─ deployments/ # Auto-written networks JSON (source of truth for addresses)
 ├─ apps/
-│  └─ web/
-│     ├─ src/
-│     │  ├─ app/               # Next.js App Router (pages & API routes)
-│     │  │  └─ api/lobby/messages/route.ts
-│     │  │  └─ lobby/page.tsx
-│     │  ├─ components/        # UI (NicknameForm, LobbyChat, etc.)
-│     │  ├─ abi/               # Frontend ABIs
-│     │  ├─ addresses/         # Auto-generated per-network files
-│     │  ├─ addresses.json     # Auto-generated map for quick reads
-│     │  └─ lib/
-│     │     └─ supabase/       # server.ts (admin), client.ts (browser)
-│     └─ .env.local            # NEXT_PUBLIC_* only (not committed)
-├─ .github/workflows/ci.yml    # CI: compile + build
+│ └─ web/
+│ ├─ src/
+│ │ ├─ app/ # Next.js App Router (pages & API routes)
+│ │ │ └─ api/lobby/messages/route.ts
+│ │ │ └─ lobby/page.tsx
+│ │ ├─ components/ # UI (NicknameForm, LobbyChat, etc.)
+│ │ ├─ abi/ # Frontend ABIs
+│ │ ├─ addresses/ # Auto-generated per-network files
+│ │ ├─ addresses.json # Auto-generated map for quick reads
+│ │ └─ lib/
+│ │ └─ supabase/ # server.ts (admin), client.ts (browser)
+│ └─ .env.local # NEXT_PUBLIC*\* only (not committed)
+├─ .github/workflows/ci.yml # CI: compile + build
 └─ README.md
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-```
+
+> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+
+````
 
 ---
 
@@ -317,9 +333,10 @@ pnpm run ci              # CI pipeline commands (install/compile/test/build)
 
 pnpm run format          # prettier write
 pnpm run format:check    # prettier check
-```
+````
 
 <<<<<<< HEAD
+
 ### Web app (`apps/web`)
 
 ```bash
@@ -331,11 +348,11 @@ pnpm -C apps/web lint        # run ESLint
 pnpm -C apps/web run seed    # seed helper (if provided by your env)
 ```
 
-> On Windows, replace `pnpm` with `pnpm.cmd`.
-=======
+> # On Windows, replace `pnpm` with `pnpm.cmd`.
+
 - `pnpm dev` – Next dev
 - `pnpm build` – Next build
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
 ---
 
@@ -353,7 +370,7 @@ Response:
 
 Query:
 
-* `limit` – integer 1..100 (default 50)
+- `limit` – integer 1..100 (default 50)
 
 Response:
 
@@ -382,9 +399,9 @@ Body:
 
 Validation & errors:
 
-* `Invalid Ethereum address` (400)
-* `Message cannot be empty` / `Message too long (max 2000 chars)` (400)
-* Rate limit: **5 messages / 30s** (429)
+- `Invalid Ethereum address` (400)
+- `Message cannot be empty` / `Message too long (max 2000 chars)` (400)
+- Rate limit: **5 messages / 30s** (429)
 
 ---
 
@@ -400,8 +417,8 @@ pnpm -C apps/web test
 pnpm -C apps/web test src/app/api/lobby/messages/route.test.ts -- --runInBand
 ```
 
-The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseServer.mock.ts`) so you can run tests locally without a live database.
-=======
+# The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseServer.mock.ts`) so you can run tests locally without a live database.
+
 - **GitHub Actions** run on push & PR:
 
   - pnpm install (workspaces)
@@ -413,31 +430,35 @@ The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseSer
   - Examples: `HUMANODE_RPC_URL`, `PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE` (if you later need it for server actions/tests)
 
 - `main` is protected; PRs go to `dev` first.
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
 ---
 
 ## Linting & formatting
 
 <<<<<<< HEAD
-* **Prettier** is configured at the repo root. Run:
-=======
-- Branch: `feat/*`, `fix/*`, `chore/*`
-- PRs → `dev`; keep commits focused
-- Make sure CI is green (build, typecheck, lint)
-- No secrets in commits
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+
+- # **Prettier** is configured at the repo root. Run:
+
+* Branch: `feat/*`, `fix/*`, `chore/*`
+* PRs → `dev`; keep commits focused
+* Make sure CI is green (build, typecheck, lint)
+* No secrets in commits
+
+  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
 
   ```bash
   pnpm run format:check
   pnpm run format
   ```
-* **ESLint** runs via `lint-staged` on commit and can be invoked manually:
+
+- **ESLint** runs via `lint-staged` on commit and can be invoked manually:
 
   ```bash
   pnpm -C apps/web run lint
   ```
-* **Husky** (v10) sets pre-commit hooks. If needed (e.g., emergency), you can bypass with `--no-verify`—but please fix issues instead of bypassing when possible.
+
+- **Husky** (v10) sets pre-commit hooks. If needed (e.g., emergency), you can bypass with `--no-verify`—but please fix issues instead of bypassing when possible.
 
 ---
 
@@ -447,13 +468,14 @@ The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseSer
 2. **Conventional commits** are appreciated: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`…
 3. **Before pushing**:
 
-   * `pnpm run format:check` (root)
-   * `pnpm -C apps/web test`
-   * `pnpm -C apps/web build`
+   - `pnpm run format:check` (root)
+   - `pnpm -C apps/web test`
+   - `pnpm -C apps/web build`
+
 4. **Open a PR** against `dev`.
 
-   * Fill a clear description.
-   * Ensure CI is green.
+   - Fill a clear description.
+   - Ensure CI is green.
 
 **Branch protection**: the repo may require certain checks (e.g., `CI / build (push)`, CodeQL). If you see “checks expected”, wait for GitHub Actions to start or re-run them.
 
@@ -461,9 +483,9 @@ The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseSer
 
 ## Development tips (Windows)
 
-* Use **PowerShell** or **Git Bash**. When in doubt, prefer `pnpm.cmd`.
-* Line endings are normalised via `.gitattributes`. If you see warnings, you’re safe to ignore.
-* Jest sometimes caches aggressively. If tests aren’t discovered, try:
+- Use **PowerShell** or **Git Bash**. When in doubt, prefer `pnpm.cmd`.
+- Line endings are normalised via `.gitattributes`. If you see warnings, you’re safe to ignore.
+- Jest sometimes caches aggressively. If tests aren’t discovered, try:
 
   ```bash
   pnpm -C apps/web test -- --clearCache
@@ -486,18 +508,18 @@ See `LICENSE` in the repo.
 <<<<<<< HEAD
 **Q: Tests can’t find my file on Windows.**
 
-* Ensure the path is under `apps/web/src` and the file name matches `*.test.ts(x)`.
-* Run with an explicit path: `pnpm -C apps/web test src/app/api/lobby/messages/route.test.ts -- --runInBand`.
+- Ensure the path is under `apps/web/src` and the file name matches `*.test.ts(x)`.
+- Run with an explicit path: `pnpm -C apps/web test src/app/api/lobby/messages/route.test.ts -- --runInBand`.
 
 **Q: API tests fail with 500.**
 
-* Confirm your Supabase env vars are set for the web app (`apps/web/.env.local`).
-* If you’re running tests only, the Supabase server is mocked; errors usually mean a typo or path mismatch. Re-install deps and retry.
+- Confirm your Supabase env vars are set for the web app (`apps/web/.env.local`).
+- If you’re running tests only, the Supabase server is mocked; errors usually mean a typo or path mismatch. Re-install deps and retry.
 
 ---
 
-Happy hacking! If anything is unclear, open a PR with improvements to this README or file an issue. 🙌
-=======
+# Happy hacking! If anything is unclear, open a PR with improvements to this README or file an issue. 🙌
+
 - [ ] Private chats (address ↔ address) via ChatRegistry events
 - [ ] Group chats (public & private)
 - [ ] Supabase Realtime feed for lobby (optional)
@@ -514,4 +536,4 @@ Happy hacking! If anything is unclear, open a PR with improvements to this READM
 - **“Cannot find module 'webpack' types”**: We avoid importing webpack types in Next config. Use the built-in `config` param without typing it.
 - **Address mismatch**: Run `pnpm run sync:addresses` after any deploy.
   main
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))

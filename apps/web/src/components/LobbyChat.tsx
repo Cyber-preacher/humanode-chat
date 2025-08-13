@@ -4,11 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import type { RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
-import {
-  requireGetChatMessages,
-  requirePostChatMessage,
-  type Message,
-} from '@/lib/api/chat';
+import { requireGetChatMessages, requirePostChatMessage, type Message } from '@/lib/api/chat';
 
 /**
  * Lobby chat:
@@ -60,10 +56,15 @@ export default function LobbyChat() {
       .channel('realtime:public:messages:lobby')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${lobbyChatId}` },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `chat_id=eq.${lobbyChatId}`,
+        },
         (payload: RealtimePostgresInsertPayload<Message>) => {
           setMessages((prev) => [...prev, payload.new]);
-        },
+        }
       );
 
     channel.subscribe((status) => {
