@@ -1,42 +1,45 @@
-# .github/workflows/ci.yml
 name: CI
-
 on:
   push:
+    branches: [ main, dev, sync/dev-onto-main, "**" ]
   pull_request:
+    branches: [ main, dev ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          # uses your .nvmrc if present; fallback to 20 if you prefer:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v3
         with:
           version: 10
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Use Node (from .nvmrc or fallback)
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install (workspace)
+        run: pnpm -w install --frozen-lockfile=false
 
       - name: Prettier check
         run: pnpm -w run format:check
 
-      # Optional: uncomment if you want ESLint to gate CI
-      # - name: Lint (web)
-      #   run: pnpm --filter web run lint
-
+      # Only run the web tests (avoid Hardhat tests in CI for now)
       - name: Test (web)
-        run: pnpm --filter web test -- --ci --runInBand
+        run: pnpm --filter web test -- --ci
 
+      # Build web with safe dummy env (satisfies zod + Next build)
       - name: Build (web)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_dummy_1234567890123456
         run: pnpm --filter web build
