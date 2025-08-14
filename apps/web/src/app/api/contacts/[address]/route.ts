@@ -10,9 +10,9 @@ const Params = _zod.object({
 
 export async function DELETE(
   req: Request,
-  ctx: { params: Promise<{ address: string }> } // NOTE: Next 15 typedRoutes expects Promise here
+  ctx: { params: Promise<{ address: string }> } // Next 15 typedRoutes expects Promise here
 ) {
-  const { address } = await ctx.params; // <- await the params per Next 15 types
+  const { address } = await ctx.params;
   const url = new URL(req.url);
 
   const parsed = Params.safeParse({
@@ -32,13 +32,13 @@ export async function DELETE(
   }
 
   const supabase = getSupabaseAdmin();
-  // our mock & supabase v2 both support this chain order
-  // @ts-expect-error delete() chain is supported by our mock in tests
+
+  // Use delete().eq().eq() order to satisfy Supabase TS types
   const { error } = await supabase
     .from('contacts')
+    .delete()
     .eq('owner_address', owner)
-    .eq('contact_address', contact)
-    .delete();
+    .eq('contact_address', contact);
 
   if (error) {
     return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
