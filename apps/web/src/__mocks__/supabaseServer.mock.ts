@@ -9,14 +9,22 @@ type Message = {
   body: string;
   created_at: string; // ISO
 };
+type Contact = {
+  owner_address: string;
+  contact_address: string;
+  alias?: string | null;
+  created_at: string; // ISO
+};
 
 let __chats: Chat[] = [];
 let __messages: Message[] = [];
+let __contacts: Contact[] = [];
 
 // ---------- Helpers used by tests ----------
 function __reset() {
   __chats = [{ id: 'c_lobby', slug: 'lobby' }];
   __messages = [];
+  __contacts = [];
 }
 
 function __setChats(chats: Array<Partial<Chat> & Pick<Chat, 'id' | 'slug'>>) {
@@ -28,10 +36,10 @@ function __setMessages(
 ) {
   const now = Date.now();
   __messages = msgs.map((m, i) => ({
-    id: m.id,
+    id: m.id ?? `m_${Math.random().toString(36).slice(2, 8)}`,
     chat_id: m.chat_id,
     sender_address: String(m.sender_address).toLowerCase(),
-    body: m.body,
+    body: m.body ?? '',
     created_at: m.created_at ?? new Date(now - (msgs.length - i) * 1000).toISOString(),
   }));
 }
@@ -45,11 +53,28 @@ function __setLobbyMessages(
 
   const now = Date.now();
   __messages = msgs.map((m, i) => ({
-    id: m.id,
+    id: m.id ?? `m_${Math.random().toString(36).slice(2, 8)}`,
     chat_id: m.chat_id ?? lobby.id,
     sender_address: String(m.sender_address).toLowerCase(),
-    body: m.body,
+    body: m.body ?? '',
     created_at: m.created_at ?? new Date(now - (msgs.length - i) * 1000).toISOString(),
+  }));
+}
+
+function __setContacts(
+  rows: Array<{
+    owner_address: string;
+    contact_address: string;
+    alias?: string | null;
+    created_at?: string;
+  }>
+) {
+  const now = Date.now();
+  __contacts = rows.map((r, i) => ({
+    owner_address: r.owner_address.toLowerCase(),
+    contact_address: r.contact_address.toLowerCase(),
+    alias: r.alias ?? null,
+    created_at: r.created_at ?? new Date(now - (rows.length - i) * 1000).toISOString(),
   }));
 }
 
@@ -57,8 +82,10 @@ function __setLobbyMessages(
 const __seedLobbyMessages = __setLobbyMessages;
 
 // ---------- Minimal Supabase query builder mock ----------
+type Table = 'chats' | 'messages' | 'contacts';
+
 type Filter = {
-  table: 'chats' | 'messages';
+  table: Table;
   selectCols?: string;
   countHead?: boolean;
   filters: Record<string, any>;
@@ -67,9 +94,10 @@ type Filter = {
   limitN?: number;
   insertPayload?: any;
   lastInsert?: any;
+  isDelete?: boolean;
 };
 
-function makeBuilder(table: 'chats' | 'messages') {
+function makeBuilder(table: Table) {
   const f: Filter = {
     table,
     filters: {},
@@ -84,25 +112,34 @@ function makeBuilder(table: 'chats' | 'messages') {
       return api;
     },
 
-    // INSERT (for messages)
+    // INSERT
     insert(payload: any) {
       const row = Array.isArray(payload) ? payload[0] : payload;
       const nowIso = new Date().toISOString();
-      const toInsert =
-        table === 'messages'
-          ? ({
-              id: row.id ?? `m_${Math.random().toString(36).slice(2, 8)}`,
-              chat_id: row.chat_id,
-              sender_address: String(row.sender_address ?? row.senderAddress ?? '').toLowerCase(),
-              body: row.body,
-              created_at: nowIso,
-            } as Message)
-          : row;
 
       if (table === 'messages') {
+        const toInsert: Message = {
+          id: row.id ?? `m_${Math.random().toString(36).slice(2, 8)}`,
+          chat_id: row.chat_id,
+          sender_address: String(row.sender_address ?? row.senderAddress ?? '').toLowerCase(),
+          body: row.body,
+          created_at: nowIso,
+        };
         __messages.push(toInsert);
+        f.lastInsert = toInsert;
+      } else if (table === 'contacts') {
+        const toInsert: Contact = {
+          owner_address: String(row.owner_address).toLowerCase(),
+          contact_address: String(row.contact_address).toLowerCase(),
+          alias: row.alias ?? null,
+          created_at: nowIso,
+        };
+        __contacts.push(toInsert);
+        f.lastInsert = toInsert;
+      } else {
+        // chats rarely inserted by tests
+        f.lastInsert = row;
       }
-      f.lastInsert = toInsert;
 
       return {
         select() {
@@ -112,6 +149,12 @@ function makeBuilder(table: 'chats' | 'messages') {
           return Promise.resolve({ data: f.lastInsert, error: null });
         },
       };
+    },
+
+    // DELETE
+    delete() {
+      f.isDelete = true;
+      return api;
     },
 
     // FILTERS
@@ -145,22 +188,29 @@ function makeBuilder(table: 'chats' | 'messages') {
     },
 
     async _exec(): Promise<{ data: any; error: any; count?: number | null }> {
-      if (f.table === 'chats') {
-        let rows = __chats.slice();
+      const source =
+        f.table === 'chats' ? __chats : f.table === 'messages' ? __messages : __contacts;
+
+      // DELETE path
+      if (f.isDelete) {
+        let rows = source.slice();
         Object.entries(f.filters).forEach(([k, v]) => {
           rows = rows.filter((r: any) => String(r[k]) === String(v));
         });
 
-        if (f.countHead) {
-          return { data: null, error: null, count: rows.length };
+        const toRemove = new Set(rows.map((r: any) => JSON.stringify(r)));
+        if (f.table === 'contacts') {
+          __contacts = __contacts.filter((r) => !toRemove.has(JSON.stringify(r)));
+        } else if (f.table === 'messages') {
+          __messages = __messages.filter((r) => !toRemove.has(JSON.stringify(r)));
+        } else {
+          // ignore for chats
         }
-
-        if (typeof f.limitN === 'number') rows = rows.slice(0, f.limitN);
-        return { data: rows, error: null };
+        return { data: null, error: null };
       }
 
-      // messages
-      let rows = __messages.slice();
+      // SELECT path
+      let rows = source.slice();
 
       Object.entries(f.filters).forEach(([k, v]) => {
         rows = rows.filter((r: any) => String(r[k]) === String(v));
@@ -187,7 +237,6 @@ function makeBuilder(table: 'chats' | 'messages') {
 
       if (f.countHead) {
         return { data: null, error: null, count: rows.length };
-        // note: supabase returns data: [] with head:true, but count is what matters
       }
 
       return { data: rows, error: null };
@@ -203,7 +252,7 @@ function makeBuilder(table: 'chats' | 'messages') {
 // ---------- Supabase factory used by route code ----------
 function getSupabaseAdmin() {
   return {
-    from(table: 'chats' | 'messages') {
+    from(table: Table) {
       return makeBuilder(table);
     },
   };
@@ -219,6 +268,7 @@ export {
   __setChats,
   __setMessages,
   __setLobbyMessages,
+  __setContacts,
   __seedLobbyMessages,
 };
 
@@ -230,5 +280,6 @@ module.exports = {
   __setChats,
   __setMessages,
   __setLobbyMessages,
+  __setContacts,
   __seedLobbyMessages,
 };
