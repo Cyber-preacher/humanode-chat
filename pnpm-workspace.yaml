@@ -1,2 +1,5 @@
-﻿packages:
+packages:
   - apps/*
+
+ignoredBuiltDependencies:
+  - '@swc/core'

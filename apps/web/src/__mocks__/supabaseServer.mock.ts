@@ -1,166 +1,234 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/**
- * Minimal, route-aware Supabase mock for the Lobby API tests.
- * - Supports:
- *   - from('chats').select('id').eq('slug','lobby').single()
- *   - from('messages').select(...).eq().gt().order().limit() -> { data, error }
- *   - from('messages').select('*', { count:'exact', head:true }).eq().gt() -> { count, error }
- *   - from('messages').insert(row).select().single() -> { data, error }
- * - Exposes helpers to seed/reset data for tests.
- */
 
+// In-memory "DB"
 type Chat = { id: string; slug: string };
 type Message = {
   id: string;
   chat_id: string;
   sender_address: string;
   body: string;
-  created_at: string;
+  created_at: string; // ISO
 };
 
-const state = {
-  chats: [] as Chat[],
-  messages: [] as Message[],
-};
+let __chats: Chat[] = [];
+let __messages: Message[] = [];
 
+// ---------- Helpers used by tests ----------
 function __reset() {
-  state.chats = [{ id: 'lobby-1', slug: 'lobby' }];
-  state.messages = [];
+  __chats = [{ id: 'c_lobby', slug: 'lobby' }];
+  __messages = [];
 }
 
-function __setLobby(chat: Chat) {
-  const i = state.chats.findIndex((c) => c.slug === 'lobby');
-  if (i >= 0) state.chats[i] = chat;
-  else state.chats.push(chat);
+function __setChats(chats: Array<Partial<Chat> & Pick<Chat, 'id' | 'slug'>>) {
+  __chats = chats.map((c) => ({ id: c.id, slug: c.slug }));
 }
 
-function __setMessages(msgs: Message[]) {
-  state.messages = msgs.map((m) => ({ ...m }));
-}
-
-function __seedLobbyMessages(msgs: Omit<Message, 'chat_id'>[]) {
-  const lobby = state.chats.find((c) => c.slug === 'lobby') ?? { id: 'lobby-1', slug: 'lobby' };
-  __setLobby(lobby);
-  state.messages = msgs.map((m, i) => ({
-    id: m.id ?? `m${i + 1}`,
-    chat_id: lobby.id,
-    sender_address: m.sender_address,
+function __setMessages(
+  msgs: Array<Partial<Message> & Pick<Message, 'id' | 'chat_id' | 'sender_address' | 'body'>>
+) {
+  const now = Date.now();
+  __messages = msgs.map((m, i) => ({
+    id: m.id,
+    chat_id: m.chat_id,
+    sender_address: String(m.sender_address).toLowerCase(),
     body: m.body,
-    created_at: m.created_at,
+    created_at: m.created_at ?? new Date(now - (msgs.length - i) * 1000).toISOString(),
   }));
 }
 
-function nowIso() {
-  return new Date().toISOString();
+// Back-compat for lobby tests that seed “lobby” implicitly
+function __setLobbyMessages(
+  msgs: Array<Partial<Message> & Pick<Message, 'id' | 'sender_address' | 'body'>>
+) {
+  const lobby = __chats.find((c) => c.slug === 'lobby') ?? { id: 'c_lobby', slug: 'lobby' };
+  if (!__chats.find((c) => c.id === lobby.id)) __chats.push(lobby);
+
+  const now = Date.now();
+  __messages = msgs.map((m, i) => ({
+    id: m.id,
+    chat_id: m.chat_id ?? lobby.id,
+    sender_address: String(m.sender_address).toLowerCase(),
+    body: m.body,
+    created_at: m.created_at ?? new Date(now - (msgs.length - i) * 1000).toISOString(),
+  }));
 }
 
-function filterMessages(chain: any) {
-  let list = state.messages.slice();
-  for (const f of chain._filters) {
-    if (f.op === 'eq') list = list.filter((m: any) => String(m[f.col]) === String(f.val));
-    if (f.op === 'gt') list = list.filter((m: any) => String(m[f.col]) > String(f.val));
-  }
-  if (chain._order) {
-    const { col, ascending } = chain._order;
-    list.sort((a: any, b: any) => {
-      if (a[col] < b[col]) return ascending ? -1 : 1;
-      if (a[col] > b[col]) return ascending ? 1 : -1;
-      return 0;
-    });
-  }
-  if (typeof chain._limit === 'number') list = list.slice(0, chain._limit);
-  return list;
+// exact name used in older tests:
+const __seedLobbyMessages = __setLobbyMessages;
+
+// ---------- Minimal Supabase query builder mock ----------
+type Filter = {
+  table: 'chats' | 'messages';
+  selectCols?: string;
+  countHead?: boolean;
+  filters: Record<string, any>;
+  gtFilters: Record<string, any>;
+  orderBy?: { column: string; ascending: boolean };
+  limitN?: number;
+  insertPayload?: any;
+  lastInsert?: any;
+};
+
+function makeBuilder(table: 'chats' | 'messages') {
+  const f: Filter = {
+    table,
+    filters: {},
+    gtFilters: {},
+  };
+
+  const api: any = {
+    // SELECT
+    select(cols?: string, options?: { count?: 'exact'; head?: boolean }) {
+      f.selectCols = cols;
+      if (options?.head) f.countHead = true;
+      return api;
+    },
+
+    // INSERT (for messages)
+    insert(payload: any) {
+      const row = Array.isArray(payload) ? payload[0] : payload;
+      const nowIso = new Date().toISOString();
+      const toInsert =
+        table === 'messages'
+          ? ({
+              id: row.id ?? `m_${Math.random().toString(36).slice(2, 8)}`,
+              chat_id: row.chat_id,
+              sender_address: String(row.sender_address ?? row.senderAddress ?? '').toLowerCase(),
+              body: row.body,
+              created_at: nowIso,
+            } as Message)
+          : row;
+
+      if (table === 'messages') {
+        __messages.push(toInsert);
+      }
+      f.lastInsert = toInsert;
+
+      return {
+        select() {
+          return this;
+        },
+        single() {
+          return Promise.resolve({ data: f.lastInsert, error: null });
+        },
+      };
+    },
+
+    // FILTERS
+    eq(column: string, value: any) {
+      f.filters[column] = value;
+      return api;
+    },
+
+    gt(column: string, value: any) {
+      f.gtFilters[column] = value;
+      return api;
+    },
+
+    order(column: string, opts: { ascending: boolean }) {
+      f.orderBy = { column, ascending: !!opts?.ascending };
+      return api;
+    },
+
+    limit(n: number) {
+      f.limitN = n;
+      return api;
+    },
+
+    // EXECUTORS
+    async single() {
+      const res = await api._exec();
+      const rows = Array.isArray(res.data) ? res.data : [];
+      if (rows.length === 1) return { data: rows[0], error: null };
+      if (rows.length === 0) return { data: null, error: new Error('No rows') };
+      return { data: null, error: new Error('More than one row') };
+    },
+
+    async _exec(): Promise<{ data: any; error: any; count?: number | null }> {
+      if (f.table === 'chats') {
+        let rows = __chats.slice();
+        Object.entries(f.filters).forEach(([k, v]) => {
+          rows = rows.filter((r: any) => String(r[k]) === String(v));
+        });
+
+        if (f.countHead) {
+          return { data: null, error: null, count: rows.length };
+        }
+
+        if (typeof f.limitN === 'number') rows = rows.slice(0, f.limitN);
+        return { data: rows, error: null };
+      }
+
+      // messages
+      let rows = __messages.slice();
+
+      Object.entries(f.filters).forEach(([k, v]) => {
+        rows = rows.filter((r: any) => String(r[k]) === String(v));
+      });
+
+      Object.entries(f.gtFilters).forEach(([k, v]) => {
+        if (k === 'created_at') {
+          const since = new Date(String(v)).getTime();
+          rows = rows.filter((r: any) => new Date(r.created_at).getTime() > since);
+        }
+      });
+
+      if (f.orderBy) {
+        const { column, ascending } = f.orderBy;
+        rows.sort((a: any, b: any) => {
+          const av = a[column];
+          const bv = b[column];
+          if (av === bv) return 0;
+          return ascending ? (av < bv ? -1 : 1) : av > bv ? -1 : 1;
+        });
+      }
+
+      if (typeof f.limitN === 'number') rows = rows.slice(0, f.limitN);
+
+      if (f.countHead) {
+        return { data: null, error: null, count: rows.length };
+        // note: supabase returns data: [] with head:true, but count is what matters
+      }
+
+      return { data: rows, error: null };
+    },
+  };
+
+  // Make the builder awaitable like Supabase’s PostgrestFilterBuilder
+  api.then = (resolve: any, reject?: any) => api._exec().then(resolve, reject);
+
+  return api;
 }
 
+// ---------- Supabase factory used by route code ----------
 function getSupabaseAdmin() {
   return {
     from(table: 'chats' | 'messages') {
-      const chain: any = {
-        _table: table,
-        _filters: [] as any[],
-        _order: null as null | { col: string; ascending: boolean },
-        _limit: undefined as number | undefined,
-        _selectCount: false,
-        _head: false,
-        _columns: null as null | string,
-
-        select(cols: string, opts?: { count?: 'exact'; head?: boolean }) {
-          this._columns = cols;
-          if (opts?.count) this._selectCount = true;
-          if (opts?.head) this._head = true;
-          return this;
-        },
-        eq(col: string, val: any) {
-          this._filters.push({ op: 'eq', col, val });
-          return this;
-        },
-        gt(col: string, val: any) {
-          this._filters.push({ op: 'gt', col, val });
-          return this;
-        },
-        order(col: string, options?: { ascending?: boolean }) {
-          this._order = { col, ascending: options?.ascending !== false };
-          return this;
-        },
-        limit(n: number) {
-          this._limit = n;
-          return this;
-        },
-        async single() {
-          if (table === 'chats') {
-            const found = state.chats.find((c) =>
-              this._filters.every((f: any) => (c as any)[f.col] === f.val)
-            );
-            if (!found) return { data: null, error: new Error('Not found') };
-            return { data: found, error: null };
-          }
-          if (table === 'messages') {
-            const list = filterMessages(this);
-            const one = list[0];
-            return { data: one ?? null, error: one ? null : new Error('Not found') };
-          }
-          return { data: null, error: new Error('Unknown table') };
-        },
-        insert(row: Partial<Message>) {
-          const id = row.id ?? `m${state.messages.length + 1}`;
-          const created_at = row.created_at ?? nowIso();
-          const msg: Message = {
-            id: String(id),
-            chat_id: String(row.chat_id),
-            sender_address: String(row.sender_address),
-            body: String(row.body),
-            created_at,
-          };
-          state.messages.push(msg);
-          return {
-            select: () => ({
-              single: async () => ({ data: msg, error: null }),
-            }),
-          };
-        },
-
-        // Make the whole chain awaitable. Awaiting it resolves to the expected shape
-        // based on whether we're counting or fetching rows.
-        then(resolve: (v: any) => void) {
-          if (table === 'messages' && this._selectCount && this._head) {
-            const list = filterMessages(this);
-            resolve({ count: list.length, error: null });
-            return;
-          }
-          if (table === 'messages') {
-            const list = filterMessages(this);
-            resolve({ data: list, error: null });
-            return;
-          }
-          // default no-op
-          resolve({ data: null, error: null });
-        },
-      };
-
-      return chain;
+      return makeBuilder(table);
     },
   };
 }
 
-export { getSupabaseAdmin, __reset, __setLobby, __setMessages, __seedLobbyMessages, state };
-export default { getSupabaseAdmin, __reset, __setLobby, __setMessages, __seedLobbyMessages, state };
+// Initialize state
+__reset();
+
+// ---------- Exports ----------
+export {
+  getSupabaseAdmin,
+  __reset,
+  __setChats,
+  __setMessages,
+  __setLobbyMessages,
+  __seedLobbyMessages,
+};
+
+// Also support CommonJS require() in tests
+module.exports = {
+  __esModule: true,
+  getSupabaseAdmin,
+  __reset,
+  __setChats,
+  __setMessages,
+  __setLobbyMessages,
+  __seedLobbyMessages,
+};

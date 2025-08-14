@@ -1,236 +1,153 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
+import type { RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 import { getSupabaseBrowser } from '@/lib/supabase/client';
+import { requireGetChatMessages, requirePostChatMessage, type Message } from '@/lib/api/chat';
 
-type Message = {
-  id: string;
-  sender_address: string;
-  body: string;
-  created_at: string;
-};
-
-type LobbyListResponse = { ok: true; messages: Message[] } | { ok: false; error: string };
-
-type LobbyPostResponse = { ok: true; message: Message } | { ok: false; error: string };
-
+/**
+ * Lobby chat:
+ * - Loads messages via GET /api/chats/lobby/messages
+ * - Sends via POST /api/chats/lobby/messages
+ * - Optional realtime subscription once we know lobby's chat_id
+ */
 export default function LobbyChat() {
-  const { address, isConnected } = useAccount();
-  const supa = useMemo(() => getSupabaseBrowser(), []);
+  const { address } = useAccount();
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState('');
-  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [lastError, setLastError] = useState<string | null>(null);
+  const [posting, setPosting] = useState(false);
 
-  // Realtime subscription + lobby id
-  const subRef = useRef<ReturnType<typeof supa.channel> | null>(null);
-  const [lobbyId, setLobbyId] = useState<string | null>(null);
+  // infer the lobby chat_id from any message we already have
+  const lobbyChatId = useMemo(() => messages.find((m) => m.chat_id)?.chat_id ?? null, [messages]);
 
-  async function load() {
-    try {
-      const res = await fetch('/api/lobby/messages?limit=100', { cache: 'no-store' });
-      const json = (await res.json()) as unknown;
-      const data = json as LobbyListResponse;
-
-      if ('ok' in data && data.ok) {
-        setMessages(data.messages);
-        setLastError(null);
-      } else {
-        const err =
-          ('error' in (data as { error?: string }) &&
-            (data as unknown as { error?: string }).error) ||
-          'Failed to load';
-        setLastError(String(err));
-      }
-    } catch (e) {
-      setLastError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let mounted = true;
-    load();
-
-    async function setupRealtime() {
-      const { data, error } = await supa.from('chats').select('id').eq('slug', 'lobby').single();
-
-      if (error || !data?.id || !mounted) return;
-      setLobbyId(data.id);
-
-      const channel = supa
-        .channel('lobby-messages')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${data.id}` },
-          (payload) => {
-            const row = payload.new as Record<string, unknown>;
-            const msg: Message = {
-              id: String(row.id ?? ''),
-              sender_address: String(row.sender_address ?? ''),
-              body: String(row.body ?? ''),
-              created_at: String(row.created_at ?? new Date().toISOString()),
-            };
-            setMessages((prev) => [...prev, msg]);
-          }
-        )
-        .subscribe();
-
-      subRef.current = channel;
-    }
-
-    setupRealtime();
-
+    (async () => {
+      try {
+        const msgs = await requireGetChatMessages('lobby', 50);
+        if (!mounted) return;
+        setMessages(msgs);
+      } catch (e) {
+        console.error('Failed to load lobby messages:', e);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
     return () => {
       mounted = false;
-      const ch = subRef.current;
-      if (ch) {
-        supa.removeChannel(ch);
-        subRef.current = null;
+    };
+  }, []);
+
+  // auto-scroll on new messages
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages.length]);
+
+  // subscribe to realtime inserts for this chat
+  useEffect(() => {
+    if (!lobbyChatId) return;
+
+    const supa = getSupabaseBrowser();
+    const channel = supa.channel('realtime:public:messages:lobby').on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `chat_id=eq.${lobbyChatId}`,
+      },
+      (payload: RealtimePostgresInsertPayload<Message>) => {
+        setMessages((prev) => [...prev, payload.new]);
       }
+    );
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') console.log('[realtime] subscribed to lobby messages');
+    });
+
+    return () => {
+      supa.removeChannel(channel);
     };
-  }, [supa]);
+  }, [lobbyChatId]);
 
-  async function send() {
-    const text = body.trim();
-    if (!isConnected || !address || text.length === 0) return;
+  async function sendMessage() {
+    if (!address) {
+      alert('Connect your wallet first.');
+      return;
+    }
+    const trimmed = body.trim();
+    if (!trimmed) return;
 
-    setSending(true);
-    setLastError(null);
-
-    const optimistic: Message = {
-      id: `tmp-${Date.now()}`,
-      sender_address: address.toLowerCase(),
-      body: text,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimistic]);
-    setBody('');
-
+    setPosting(true);
     try {
-      const res = await fetch('/api/lobby/messages', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ senderAddress: address, body: text }),
+      const msg = await requirePostChatMessage('lobby', {
+        senderAddress: address,
+        body: trimmed,
       });
-      const json = (await res.json()) as unknown;
-      const data = json as LobbyPostResponse;
-
-      if (!('ok' in data) || !data.ok) {
-        const err =
-          ('error' in (data as { error?: string }) &&
-            (data as unknown as { error?: string }).error) ||
-          'Failed';
-        throw new Error(String(err));
-      }
-
-      // Refresh to replace the optimistic row with canonical
-      await load();
+      setMessages((prev) => [...prev, msg]); // optimistic
+      setBody('');
     } catch (e) {
-      // rollback optimistic message and show error
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setBody(text);
-      setLastError(e instanceof Error ? e.message : String(e));
+      alert(`Failed to send: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
-      setSending(false);
+      setPosting(false);
     }
   }
 
-  // simple dark styles
-  const border = '1px solid #2d2f36';
-  const bgCard = '#0f1115';
-  const bgMsg = '#161a22';
-  const textMuted = '#a0a3ad';
-
   return (
-    <section
-      style={{
-        border,
-        padding: 16,
-        borderRadius: 12,
-        marginTop: 16,
-        background: bgCard,
-        color: '#e5e7eb',
-      }}
-    >
-      <h3 style={{ marginTop: 0, marginBottom: 12 }}>Lobby (public)</h3>
+    <div className="flex h-full flex-col gap-3">
+      <div className="text-lg font-semibold"># Lobby</div>
 
-      {lastError && (
-        <div
-          style={{
-            background: '#3b0d0d',
-            border: '1px solid #6b1b1b',
-            padding: 8,
-            borderRadius: 8,
-            marginBottom: 8,
-          }}
-        >
-          <strong>Error:</strong> {lastError}
-        </div>
-      )}
-
-      {loading ? (
-        <p style={{ color: textMuted }}>Loading…</p>
-      ) : (
-        <div
-          style={{ display: 'grid', gap: 8, maxHeight: 360, overflowY: 'auto', paddingRight: 8 }}
-        >
-          {messages.length === 0 ? (
-            <p style={{ color: textMuted }}>No messages yet. Say hi 👋</p>
-          ) : (
-            messages.map((m) => (
-              <div key={m.id} style={{ padding: 8, background: bgMsg, borderRadius: 8 }}>
-                <div style={{ fontSize: 12, color: textMuted, marginBottom: 4 }}>
-                  {m.sender_address.slice(0, 6)}…{m.sender_address.slice(-4)} •{' '}
-                  {new Date(m.created_at).toLocaleTimeString()}
-                  {m.id.startsWith('tmp-') ? ' • sending…' : ''}
+      <div
+        ref={listRef}
+        className="flex-1 overflow-y-auto rounded-xl border p-3"
+        style={{ minHeight: 240 }}
+      >
+        {loading ? (
+          <div className="text-sm text-gray-500">Loading…</div>
+        ) : messages.length === 0 ? (
+          <div className="text-sm text-gray-500">No messages yet. Say hi 👋</div>
+        ) : (
+          <ul className="space-y-2">
+            {messages.map((m) => (
+              <li key={m.id} className="rounded-md bg-gray-50 p-2">
+                <div className="text-xs text-gray-500">
+                  {m.sender_address.slice(0, 6)}…{m.sender_address.slice(-4)} ·{' '}
+                  {new Date(m.created_at).toLocaleString()}
                 </div>
-                <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.body}</div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+                <div className="whitespace-pre-wrap text-sm">{m.body}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void sendMessage();
+        }}
+      >
         <input
-          placeholder={isConnected ? 'Write a message' : 'Connect wallet to chat'}
-          disabled={!isConnected || sending}
+          className="flex-1 rounded-lg border px-3 py-2 text-sm"
+          placeholder={address ? 'Type a message…' : 'Connect wallet to chat'}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          style={{
-            padding: 10,
-            flex: 1,
-            border: '1px solid #3a3d45',
-            background: '#0b0d12',
-            color: '#e5e7eb',
-            borderRadius: 8,
-          }}
+          disabled={!address || posting}
+          maxLength={2000}
         />
         <button
-          onClick={() => void send()}
-          disabled={!isConnected || sending || body.trim().length === 0}
-          style={{
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: sending || body.trim().length === 0 ? '#2a2e37' : '#2563eb',
-            color: '#fff',
-            border: 'none',
-            cursor: !isConnected || sending || body.trim().length === 0 ? 'not-allowed' : 'pointer',
-          }}
+          type="submit"
+          className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+          disabled={!address || posting || body.trim() === ''}
         >
-          {sending ? 'Sending...' : 'Send'}
+          {posting ? 'Sending…' : 'Send'}
         </button>
-      </div>
-
-      <div style={{ marginTop: 8, fontSize: 12, color: textMuted }}>
-        {isConnected
-          ? `Connected as ${address?.slice(0, 6)}…${address?.slice(-4)}`
-          : 'Connect wallet to participate.'}
-      </div>
-    </section>
+      </form>
+    </div>
   );
 }

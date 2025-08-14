@@ -1,5 +1,5 @@
 // apps/web/src/lib/http.ts
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 /**
  * Uniform API response helpers.
@@ -13,7 +13,7 @@ export type ApiErr = { ok: false; error: string; details?: unknown };
 export function toErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   try {
-    return typeof err === "string" ? err : JSON.stringify(err);
+    return typeof err === 'string' ? err : JSON.stringify(err);
   } catch {
     return String(err);
   }
@@ -31,16 +31,19 @@ export function created<T extends object>(payload: T, init?: ResponseInit): Resp
 
 /** 400 Bad Request */
 export function badRequest(message: string, details?: unknown): Response {
-  return NextResponse.json<ApiErr>({ ok: false, error: message, ...(details ? { details } : {}) }, { status: 400 });
+  return NextResponse.json<ApiErr>(
+    { ok: false, error: message, ...(details ? { details } : {}) },
+    { status: 400 }
+  );
 }
 
 /** 404 Not Found */
-export function notFound(message = "Not found"): Response {
+export function notFound(message = 'Not found'): Response {
   return NextResponse.json<ApiErr>({ ok: false, error: message }, { status: 404 });
 }
 
 /** 429 Too Many Requests */
-export function tooMany(message = "Rate limit exceeded"): Response {
+export function tooMany(message = 'Rate limit exceeded'): Response {
   return NextResponse.json<ApiErr>({ ok: false, error: message }, { status: 429 });
 }
 
