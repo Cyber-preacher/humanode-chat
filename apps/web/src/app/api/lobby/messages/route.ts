@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z as _zod } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase/server'; // alias so Jest mock hooks
+import { checkLobbyRateLimit, rateLimitHeaders } from '@/lib/ratelimit';
 
 // GET /api/lobby/messages?limit=NUMBER
 const GetQuery = _zod.object({
@@ -14,7 +15,7 @@ const PostBody = _zod.object({
 });
 
 export async function GET(req: NextRequest) {
-  // Build URL safely for Jest (string) and Next runtime
+  // Make a URL safely for Jest (string) and Next runtime
   const raw = (req as unknown as { url?: string })?.url ?? '/api/lobby/messages';
   const url = raw.startsWith('http') ? new URL(raw) : new URL(`http://localhost${raw}`);
 
@@ -49,31 +50,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseAdmin();
     const senderLower = parsed.data.senderAddress.toLowerCase();
-    const sinceIso = new Date(Date.now() - 30_000).toISOString();
 
-    // EXACTLY what the mock supports: count via head:true + eq + gt
-    const { count: recentCount, error: countErr } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('sender_address', senderLower)
-      .gt('created_at', sinceIso);
-
-    if (countErr) {
-      return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
-    }
-
-    // Block when there are already 5 in the last 30s → this is the 6th
-    if ((recentCount ?? 0) >= 5) {
-      return NextResponse.json(
-        { ok: false, error: 'Rate limit exceeded. Please slow down.' },
-        { status: 429 }
+    // DB-backed rate limit (matches tests)
+    const info = await checkLobbyRateLimit(supabase, senderLower, 30_000, 5);
+    if (!info.allowed) {
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: 'Rate limit exceeded. Please slow down.' }),
+        { status: 429, headers: { 'content-type': 'application/json', ...rateLimitHeaders(info) } }
       );
     }
 
-    // Insert into lobby; mock uses snake_case and lobby id `c_lobby`
+    // Insert; mock accepts snake case
     const { error: insertErr } = await supabase.from('messages').insert([
       {
-        chat_id: 'c_lobby',
+        chat_id: 'c_lobby', // lobby id in mock
         sender_address: senderLower,
         body: parsed.data.body,
       },
@@ -83,9 +73,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true }, { status: 201 });
+    return new NextResponse(JSON.stringify({ ok: true }), {
+      status: 201,
+      headers: { 'content-type': 'application/json', ...rateLimitHeaders(info) },
+    });
   } catch {
-    // Only hit on malformed JSON in tests
     return NextResponse.json({ ok: false, error: 'Invalid body' }, { status: 400 });
   }
 }
