@@ -5,7 +5,6 @@ import { getSupabaseServerClient } from '../../../../lib/supabase/server';
 
 /**
  * GET /api/lobby/messages?limit=NUMBER
- * Keep this schema name unique (no duplicate declarations).
  */
 const GetQuery = _zod.object({
   limit: _zod.coerce.number().int().min(1).max(100).default(20),
@@ -20,6 +19,30 @@ const PostBody = _zod.object({
   body: _zod.string().min(1, 'body required').max(2000),
 });
 
+/** --- Simple in-memory rate limiter (per senderAddress) --- */
+type RLStore = Map<string, number[]>;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __LOBBY_RL__: RLStore | undefined;
+}
+
+const RL_WINDOW_MS = 30_000;
+const RL_MAX = 5;
+
+// persist across HMR/test runs without using `any`
+const rlStore: RLStore = globalThis.__LOBBY_RL__ ?? (globalThis.__LOBBY_RL__ = new Map());
+
+function rateLimited(sender: string, now = Date.now()): boolean {
+  const bucket = rlStore.get(sender) ?? [];
+  const cutoff = now - RL_WINDOW_MS;
+  const recent = bucket.filter((t) => t >= cutoff);
+  if (recent.length >= RL_MAX) return true; // 6th call within 30s -> limited
+  recent.push(now);
+  rlStore.set(sender, recent);
+  return false;
+}
+
 export async function GET(req: NextRequest) {
   try {
     // Support relative URLs in tests
@@ -28,9 +51,11 @@ export async function GET(req: NextRequest) {
     const limit = parsed.success ? parsed.data.limit : 20;
 
     const supabase = await getSupabaseServerClient();
-
-    // Keep the mock happy: simple chain (no .order)
-    const { data, error } = await supabase.from('messages').select('*').limit(limit);
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false }) // tests expect this call
+      .limit(limit);
 
     if (error) {
       return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
@@ -38,7 +63,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, messages: data ?? [] }, { status: 200 });
   } catch {
-    // Only hit on malformed URL or unexpected throws in tests
+    // Malformed URL only (tests don't hit this on happy-path)
     return NextResponse.json({ ok: false, error: 'Invalid query parameters' }, { status: 400 });
   }
 }
@@ -56,24 +81,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: msg }, { status: 400 });
     }
 
-    const supabase = await getSupabaseServerClient();
-
     const { senderAddress, body } = parsed.data;
 
-    // Insert; schema uses snake_case in DB, but the mock only checks call count/result.
+    // Enforce 5 msgs / 30s per senderAddress (6th => 429)
+    if (rateLimited(senderAddress)) {
+      return NextResponse.json(
+        { ok: false, error: 'Rate limit exceeded. Please slow down.' },
+        { status: 429 }
+      );
+    }
+
+    const supabase = await getSupabaseServerClient();
     const { error } = await supabase.from('messages').insert([
       {
+        // DB uses snake_case; mock ignores exact shape but keep consistent
         sender_address: senderAddress,
         body,
       },
     ]);
 
     if (error) {
-      // Tests expect 429 + this exact message when rate limit triggers
-      return NextResponse.json(
-        { ok: false, error: 'Rate limit exceeded. Please slow down.' },
-        { status: 429 }
-      );
+      // If mock/DB signals failure (not RL), surface a generic 500
+      return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true }, { status: 201 });
