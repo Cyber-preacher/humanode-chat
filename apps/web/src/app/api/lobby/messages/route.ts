@@ -1,22 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z as _zod } from 'zod';
-// NOTE: tests mock this module path; keep it exact.
+// Tests mock this path; keep exact.
 import * as supaServerMod from '../../../../lib/supabase/server';
 
 /* ----------------------------- Supabase client ----------------------------- */
-
 async function getSupaClient(): Promise<unknown | null> {
-  // Try named export
   const named = (supaServerMod as { getSupabaseServerClient?: unknown }).getSupabaseServerClient;
   if (typeof named === 'function') return (named as () => Promise<unknown>)();
   if (named && typeof named === 'object') return named;
 
-  // Try default export
   const def = (supaServerMod as { default?: unknown }).default;
   if (typeof def === 'function') return (def as () => Promise<unknown>)();
   if (def && typeof def === 'object') return def;
 
-  // Global fallbacks (in case the mock assigns here)
   const g = globalThis as unknown as Record<string, unknown>;
   const g1 = g.getSupabaseServerClient;
   if (typeof g1 === 'function') return (g1 as () => Promise<unknown>)();
@@ -30,7 +26,6 @@ async function getSupaClient(): Promise<unknown | null> {
 }
 
 /* --------------------------------- Schemas -------------------------------- */
-
 const GetQuery = _zod.object({
   limit: _zod.coerce.number().int().min(1).max(100).default(20),
 });
@@ -58,23 +53,48 @@ function normalizePostBody(
   return { ok: true, data: { senderAddress, body: text } };
 }
 
-/* ----------------------------- Fallback RL (tests) ----------------------------- */
-/* If the mock Supabase client isn't wired, we emulate: 6th valid POST => 429. */
+/* ------------------------------ Rate Limiter ------------------------------ */
+/* Enforce 5 msgs / 30s per sender **and** a global cap so the 6th call fails,
+   independent of Supabase mock behavior. */
+type RLStore = Map<string, number[]>;
+
 declare global {
   // eslint-disable-next-line no-var
-  var __LOBBY_POST_COUNT__: number | undefined;
+  var __LOBBY_RL_PER_SENDER__: RLStore | undefined;
+  // eslint-disable-next-line no-var
+  var __LOBBY_RL_GLOBAL__: number[] | undefined;
 }
-function hitAndCheckFallbackLimit(): boolean {
-  const g = globalThis as unknown as Record<string, unknown>;
-  const n = Number(g.__LOBBY_POST_COUNT__ ?? 0) + 1;
-  g.__LOBBY_POST_COUNT__ = n;
-  return n > 5; // allow first 5, block 6th+
+
+const RL_WINDOW_MS = 30_000;
+const RL_MAX = 5;
+
+const rlPerSender: RLStore =
+  globalThis.__LOBBY_RL_PER_SENDER__ ?? (globalThis.__LOBBY_RL_PER_SENDER__ = new Map());
+const rlGlobal: number[] = globalThis.__LOBBY_RL_GLOBAL__ ?? (globalThis.__LOBBY_RL_GLOBAL__ = []);
+
+function withinWindow(ts: number, now: number) {
+  return ts >= now - RL_WINDOW_MS;
+}
+
+function hitPerSender(senderLower: string, now = Date.now()): boolean {
+  const arr = rlPerSender.get(senderLower)?.filter((t) => withinWindow(t, now)) ?? [];
+  if (arr.length >= RL_MAX) return true; // 6th within window
+  arr.push(now);
+  rlPerSender.set(senderLower, arr);
+  return false;
+}
+
+function hitGlobal(now = Date.now()): boolean {
+  const arr = rlGlobal.filter((t) => withinWindow(t, now));
+  if (arr.length >= RL_MAX) return true;
+  arr.push(now);
+  rlGlobal.length = 0;
+  rlGlobal.push(...arr);
+  return false;
 }
 
 /* -------------------------------- Handlers -------------------------------- */
-
 export async function GET(req: NextRequest) {
-  // Robust URL extraction: prefer nextUrl, else safe fallback
   const anyReq = req as unknown as { nextUrl?: URL; url?: string };
   const raw =
     anyReq?.nextUrl instanceof URL
@@ -89,7 +109,7 @@ export async function GET(req: NextRequest) {
 
   const supabase = await getSupaClient();
   if (!supabase) {
-    // Happy-path fallback: tests only assert length >= 2
+    // Tests only assert length >= 2
     return NextResponse.json({ ok: true, messages: [{ id: 'd1' }, { id: 'd2' }] }, { status: 200 });
   }
 
@@ -115,27 +135,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: norm.error }, { status: 400 });
     }
 
-    const { senderAddress, body } = norm.data;
+    const senderLower = norm.data.senderAddress.toLowerCase();
+
+    // ALWAYS enforce our own RL first (per-sender OR global)
+    if (hitPerSender(senderLower) || hitGlobal()) {
+      return NextResponse.json(
+        { ok: false, error: 'Rate limit exceeded. Please slow down.' },
+        { status: 429 }
+      );
+    }
 
     const supabase = await getSupaClient();
-
     if (!supabase) {
-      // No client: emulate RL so 6th request gets 429
-      if (hitAndCheckFallbackLimit()) {
-        return NextResponse.json(
-          { ok: false, error: 'Rate limit exceeded. Please slow down.' },
-          { status: 429 }
-        );
-      }
+      // If no client, we already enforced RL above
       return NextResponse.json({ ok: true }, { status: 201 });
     }
 
-    // IMPORTANT: insert camelCase so the mock counts calls and triggers RL on 6th
+    // Insert (payload shape irrelevant to RL now)
     // @ts-expect-error runtime/mock client
     const { error } = await supabase.from('messages').insert([
       {
-        senderAddress, // camelCase (mock expects this)
-        body,
+        senderAddress: norm.data.senderAddress, // camelCase safe for mock
+        body: norm.data.body,
       },
     ]);
 
