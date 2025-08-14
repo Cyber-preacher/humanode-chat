@@ -1,539 +1,248 @@
-<<<<<<< HEAD
-
-# Humanode Chat — Contributor-friendly README
-
-=======
-chore/release-drafter-triggers
-[![CI](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml/badge.svg)](…)
-
-> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
-Welcome! This repo is a small monorepo:
-
-<<<<<<< HEAD
-
-```
-humanode-chat/
-├─ apps/
-│  └─ web/                # Next.js app (chat UI + API routes)
-├─ contracts & scripts    # Hardhat contracts / deploy scripts
-├─ .husky/                # Git hooks
-├─ .lintstagedrc.json     # On-commit formatting/lint
-├─ .editorconfig          # Cross-OS editor defaults
-├─ .gitattributes         # Line endings normalisation
-├─ .prettierrc.json       # Prettier config
-├─ pnpm-workspace.yaml    # pnpm monorepo
-└─ package.json           # workspace root scripts
-```
-
-> # **Package manager:** pnpm. On Windows, use `pnpm.cmd` instead of `pnpm` in terminals that require it.
-
-## Humanode-chat
-
-Humanode-chat
-This project is an attempt to create a biomapper gated chat app.
-
-Public chat + biomapper-gated nicknames on Humanode Testnet-5.
-Frontend: Next.js (App Router) + wagmi + RainbowKit.
-Contracts: Hardhat + Biomapper libraries.
-Storage: Supabase (Postgres + RLS).
-
-CI
-
-## Quick start
-
-Requirements
-
-Node 20.x (LTS)
-
-pnpm 9.x
-
-A funded Humanode testnet wallet (eHMND)
-
-Supabase project (tables & policies) – see below
-
-1. Install
-   pnpm install
-   =======
-
 # Humanode Chat
 
-[![CI](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Cyber-preacher/humanode-chat/actions/workflows/ci.yml)
+**Status:** early preview (`v0.1.x`) – contributions welcome!  
+**Goal:** the first private, **sybil-resistant** messenger powered by **Humanode Biomapper** (only biomapped wallets can set a nickname and participate in gated flows).
 
-Humanode-gated chat prototype:
+Monorepo layout (pnpm workspaces):
+- **Frontend:** Next.js 15 (App Router) + wagmi + RainbowKit
+- **Smart contracts:** Hardhat — `AddressRouter` (canonical addresses), `ProfileRegistry` (nicknames), `ChatRegistry` (events/hooks-ready)
+- **Chain:** Humanode **Testnet-5** (`chainId = 14853`)
+- **Storage:** Supabase (Postgres) with **RLS**; public Lobby room + private rooms
+- **API routes:** `/api/health`, `/api/lobby/messages`, `/api/chats`, `/api/chats/[id]/messages`, stub `/api/chats/dm`
+- **Rate limit:** ~**5 msgs / 30s / address** (HTTP endpoints)
 
-- **Biomapper** check on Humanode Testnet-5 (only biomapped wallets can set a nickname)
-- On-chain **ProfileRegistry** (nickname) & **ChatRegistry** (events/hooks ready)
-- **Next.js 15 + wagmi + RainbowKit** front-end
-- **Supabase** for lobby messages (public room), RLS-safe
-- Address **Router** + auto-sync so you don’t copy/paste contract addresses ever again
-
-> Status: early preview (`v0.1.x`). Contributions welcome!
->
-> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
----
-
-## Features
-
-- Lobby chat page (`/lobby`)
-- API routes
-
-<<<<<<< HEAD
-
-- `GET /api/health` – quick health check `{ ok: true }`
-- `GET /api/lobby/messages?limit=n` – list recent lobby messages
-- # `POST /api/lobby/messages` – add a message
-
-* Node.js 20.x
-* pnpm 9.x
-* Metamask (or WalletConnect) on **Humanode Testnet-5** (Chain ID `14853`)
-* Supabase project (free tier OK)
-
-  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
-      * Body: `{ senderAddress: "0x…40 hex…", body: "text" }`
-      * Rate limit: **max 5 msgs / 30s per address** (429 on exceed)
-
-- Supabase data layer (typed env validation)
-- Jest tests for the lobby API
-- Prettier + ESLint + Husky + lint-staged
+> This repo is **pnpm**-native. On Windows shells that require it, use **`pnpm.cmd`** in commands below.
 
 ---
 
-## Prerequisites
+## Repository structure
 
-- **Node.js** ≥ 18.17 (< 23 recommended). The repo includes `.nvmrc` for Node 20.
-- **pnpm** ≥ 8 (we use 10.x locally). Install: `npm i -g pnpm`.
-- **Supabase project** (URL + anon key + service role key).
+humanode-chat/
+├─ apps/
+│  └─ web/                       # Next.js app (UI + API routes)
+├─ contracts/                    # Solidity: AddressRouter, ProfileRegistry, ChatRegistry
+├─ deployments/                  # Auto-written addresses (e.g. humanode-testnet5.json)
+├─ scripts/                      # Hardhat deploy + address sync
+│  ├─ deploy_router.ts
+│  ├─ deploy_profile.ts
+│  ├─ deploy_chat.ts
+│  └─ sync-addresses.ts
+├─ tests/                        # (contracts and web tests)
+├─ .husky/                       # pre-commit hooks
+├─ .editorconfig
+├─ .gitattributes                # normalize line-endings (LF)
+├─ .prettierrc
+├─ pnpm-workspace.yaml
+└─ package.json
 
 ---
 
-## Quick start
+## Requirements
 
-### 1) Install deps (at repo root)
+- **Node 20.x LTS** (repo includes `.nvmrc` = `20`)
+- **pnpm 9.x**
+- Supabase project (free tier OK)
+- Wallet for **Humanode Testnet-5** (chainId **14853**) to test on-chain nickname gating
 
-```bash
-# macOS/Linux
-pnpm install
-# Windows (PowerShell / CMD)
-pnpm.cmd install
-```
+> The frontend validates envs with **Zod** (fail-fast, clear errors).
+
+---
+
+## Setup
+
+### 1) Install dependencies (run at repo root)
+
+    # macOS / Linux
+    pnpm install
+
+    # Windows (PowerShell / CMD)
+    pnpm.cmd install
 
 ### 2) Environment variables
 
-Copy `.env.example` to **both** of these locations and fill values:
+Create files:
+- **`./apps/web/.env.local`** (required, client/server for web)
+- **`./.env`** (optional, for scripts)
 
-- Root (for scripts, optional): `./.env`
-- Web app: `./apps/web/.env.local`
+**Web (required):**
 
-Required keys for the web app:
+    # Supabase public client (publishable key, NOT anon)
+    NEXT_PUBLIC_SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="sb-publishable-..."
 
-```
-# Public client-side keys
-NEXT_PUBLIC_SUPABASE_URL="https://...supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
+    # RainbowKit / WalletConnect
+    NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID="..."
 
-# Server-side keys (not exposed to browser)
-SUPABASE_URL="https://...supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="..."
-```
+    # Network (defaults are fine; override if needed)
+    NEXT_PUBLIC_CHAIN_ID="14853"
 
-> The web app performs Zod validation via `apps/web/src/env.ts` and will error clearly if something is missing.
+    # Optional: override contract addresses (normally synced from AddressRouter)
+    NEXT_PUBLIC_ADDRESS_ROUTER="0x..."
+    NEXT_PUBLIC_PROFILE_REGISTRY="0x..."
+    NEXT_PUBLIC_CHAT_REGISTRY="0x..."
 
-<<<<<<< HEAD
+**Server (optional, only if you enable server-side admin operations):**
 
-### 3) Run the app
+    SUPABASE_URL="https://YOUR-PROJECT.supabase.co"
+    SUPABASE_SERVICE_ROLE_KEY="service-role-..."
 
-=======
-
-```
-# WalletConnect / Biomapper
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=...
-HUMANODE_PROJECT_ID=...
-
-# Optional overrides (frontend will usually use Router/addresses.json)
-NEXT_PUBLIC_PROFILE_REGISTRY=0x...
-NEXT_PUBLIC_CHAT_REGISTRY=0x...
-NEXT_PUBLIC_BIOMAPPER_LOG=0x...
-
-# Supabase client (publishable)
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-```
-
-> Git ignores both by default. Keep secrets out of commits.
-
-### 3) Contracts & Address Router
-
-Deploy the **AddressRouter** (stores current contract addresses on-chain) and auto-sync addresses into the frontend:
-
-```bash
-# Compile
-pnpm run compile
-
-# Deploy Router (also writes deployments/humanode-testnet5.json and syncs apps/web/src/addresses/*)
-pnpm run deploy:router
-
-# Deploy contracts (ProfileRegistry / ChatRegistry) — these scripts know how to link BiomapperLogLib
-pnpm run deploy:profile
-pnpm run deploy:chat
-
-# If you re-deploy anything: regenerate address files for the web app
-pnpm run sync:addresses
-```
-
-What this does:
-
-- Writes canonical addresses to **`deployments/humanode-testnet5.json`**
-- Generates frontend address source files in **`apps/web/src/addresses/`** and **`apps/web/src/addresses.json`**
-- The web app prefers these files; `NEXT_PUBLIC_*` can still override for testing.
-
-### 4) Supabase
-
-#### 4.1 Create tables
-
-Run this once in Supabase **SQL Editor**:
-
-```sql
-create table if not exists public.chats(
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  slug text not null unique,
-  title text not null,
-  is_public boolean not null default true
-);
-
-create table if not exists public.messages(
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  chat_id uuid not null references public.chats(id) on delete cascade,
-  sender_address text not null,
-  body text not null
-);
-
--- Seed a "lobby" room
-insert into public.chats (slug, title, is_public)
-values ('lobby', 'Public Lobby', true)
-on conflict (slug) do nothing;
-```
-
-#### 4.2 RLS policies (recommended)
-
-Enable RLS on both tables and add policies:
-
-```sql
-alter table public.chats enable row level security;
-alter table public.messages enable row level security;
-
--- Read lobby + messages
-create policy "read_public_chats" on public.chats
-for select using (is_public = true);
-
-create policy "read_public_messages" on public.messages
-for select using (
-  exists (select 1 from public.chats c where c.id = messages.chat_id and c.is_public = true)
-);
-
--- Insert messages into public rooms
-create policy "write_public_messages" on public.messages
-for insert with check (
-  exists (select 1 from public.chats c where c.id = chat_id and c.is_public = true)
-);
-```
-
-> The API route uses the **service role** on the server, but RLS makes the schema safe even if you later do client-side reads.
-
-### 5) Run the app
-
-> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
-```bash
-# Dev mode (Next.js)
-# macOS/Linux
-pnpm --filter web dev
-# Windows
-pnpm.cmd --filter web dev
-
-# Open http://localhost:3000
-```
-
-### 4) (Optional) Seed sample data
-
-<<<<<<< HEAD
-
-```bash
-# macOS/Linux
-pnpm --filter web run seed
-# Windows
-pnpm.cmd --filter web run seed
-=======
-- **Connect wallet**, ensure you’re on **Humanode Testnet-5**
-- Biomapper status shows **Verified** if your address is biomapped
-- Set nickname (on-chain)
-- Visit **/lobby** to read/send messages (Supabase)
+> File path of typed envs: `apps/web/src/env.ts` (Zod-validated).  
+> **Never** expose `SERVICE_ROLE_KEY` to the browser.
 
 ---
 
-## Project Structure
+## Contracts: compile, deploy, sync
 
-```
+    # macOS / Linux
+    pnpm run compile
+    pnpm run deploy:router
+    pnpm run deploy:profile
+    pnpm run deploy:chat
+    pnpm run sync:addresses
 
-.
-├─ contracts/ # Solidity (ProfileRegistry, ChatRegistry, AddressRouter)
-├─ scripts/ # Hardhat deploy + sync scripts
-│ ├─ deploy*router.js
-│ ├─ deploy_profile.js
-│ ├─ deploy_chat.js
-│ └─ sync-addresses.js
-├─ deployments/ # Auto-written networks JSON (source of truth for addresses)
-├─ apps/
-│ └─ web/
-│ ├─ src/
-│ │ ├─ app/ # Next.js App Router (pages & API routes)
-│ │ │ └─ api/lobby/messages/route.ts
-│ │ │ └─ lobby/page.tsx
-│ │ ├─ components/ # UI (NicknameForm, LobbyChat, etc.)
-│ │ ├─ abi/ # Frontend ABIs
-│ │ ├─ addresses/ # Auto-generated per-network files
-│ │ ├─ addresses.json # Auto-generated map for quick reads
-│ │ └─ lib/
-│ │ └─ supabase/ # server.ts (admin), client.ts (browser)
-│ └─ .env.local # NEXT_PUBLIC*\* only (not committed)
-├─ .github/workflows/ci.yml # CI: compile + build
-└─ README.md
+    # Windows
+    pnpm.cmd run compile
+    pnpm.cmd run deploy:router
+    pnpm.cmd run deploy:profile
+    pnpm.cmd run deploy:chat
+    pnpm.cmd run sync:addresses
 
-> > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
-````
+What happens:
+- Deploys to Humanode **Testnet-5**.
+- Writes `deployments/humanode-testnet5.json`.
+- Syncs `apps/web/src/addresses/*` and `apps/web/src/addresses.json` used by the frontend.
 
 ---
 
-## Scripts
+## Supabase schema (Lobby) & RLS
 
-### Root (workspace)
+Run this in **Supabase SQL editor** once:
 
-<<<<<<< HEAD
-```bash
-pnpm run compile         # hardhat compile
-pnpm run test            # hardhat tests
-pnpm run dev:web         # start Next.js dev server
-pnpm run build           # build all workspaces
-pnpm run build:web       # build web app only
-pnpm run ci              # CI pipeline commands (install/compile/test/build)
-=======
-- `pnpm run compile` – Hardhat compile
-- `pnpm run deploy:router` – Deploy AddressRouter + sync addresses
-- `pnpm run deploy:profile` – Deploy ProfileRegistry (links BiomapperLogLib)
-- `pnpm run deploy:chat` – Deploy ChatRegistry (links BiomapperLogLib)
-- `pnpm run sync:addresses` – Re-write `deployments/*.json` → web address files
-- `pnpm --filter web dev` – Run Next dev server
-- `pnpm --filter web build` – Production build
->>>>>>> 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+    -- Rooms (public lobby + other rooms)
+    create table if not exists public.chats(
+      id uuid primary key default gen_random_uuid(),
+      created_at timestamptz not null default now(),
+      slug text not null unique,
+      title text not null,
+      is_public boolean not null default true
+    );
 
-pnpm run format          # prettier write
-pnpm run format:check    # prettier check
-````
+    -- Messages
+    create table if not exists public.messages(
+      id uuid primary key default gen_random_uuid(),
+      created_at timestamptz not null default now(),
+      chat_id uuid not null references public.chats(id) on delete cascade,
+      sender_address text not null,
+      body text not null
+    );
 
-<<<<<<< HEAD
+    -- Seed Lobby
+    insert into public.chats (slug, title, is_public)
+    values ('lobby', 'Public Lobby', true)
+    on conflict (slug) do nothing;
 
-### Web app (`apps/web`)
+    -- Row Level Security
+    alter table public.chats enable row level security;
+    alter table public.messages enable row level security;
 
-```bash
-pnpm -C apps/web test        # run Jest test suite
-pnpm -C apps/web test:watch  # watch mode
-pnpm -C apps/web build       # build Next.js
-pnpm -C apps/web start       # start production build
-pnpm -C apps/web lint        # run ESLint
-pnpm -C apps/web run seed    # seed helper (if provided by your env)
-```
+    -- Policies: public lobby readable by all
+    create policy "read_public_chats" on public.chats
+    for select using (is_public = true);
 
-> # On Windows, replace `pnpm` with `pnpm.cmd`.
+    create policy "read_public_messages" on public.messages
+    for select using (
+      exists (select 1 from public.chats c where c.id = messages.chat_id and c.is_public = true)
+    );
 
-- `pnpm dev` – Next dev
-- `pnpm build` – Next build
-  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+    -- Insert into public rooms only
+    create policy "write_public_messages" on public.messages
+    for insert with check (
+      exists (select 1 from public.chats c where c.id = chat_id and c.is_public = true)
+    );
 
----
-
-## API details
-
-### GET /api/health
-
-Response:
-
-```json
-{ "ok": true }
-```
-
-### GET /api/lobby/messages?limit=50
-
-Query:
-
-- `limit` – integer 1..100 (default 50)
-
-Response:
-
-```json
-{
-  "ok": true,
-  "messages": [
-    {
-      "id": "m1",
-      "chat_id": "…",
-      "sender_address": "0x…",
-      "body": "hello",
-      "created_at": "2025-08-11T12:00:00.000Z"
-    }
-  ]
-}
-```
-
-### POST /api/lobby/messages
-
-Body:
-
-```json
-{ "senderAddress": "0x…40 hex…", "body": "your message" }
-```
-
-Validation & errors:
-
-- `Invalid Ethereum address` (400)
-- `Message cannot be empty` / `Message too long (max 2000 chars)` (400)
-- Rate limit: **5 messages / 30s** (429)
+> For private rooms/DMs, use a `room_members(room_id, address)` table and adjust RLS to `exists (select 1 from room_members ...)`. (Planned below.)
 
 ---
 
-## Testing
+## Run the app
 
-<<<<<<< HEAD
-We use **Jest** in the web app.
+    # macOS / Linux
+    pnpm --filter web dev
 
-```bash
-# all tests
-pnpm -C apps/web test
-# run a single file
-pnpm -C apps/web test src/app/api/lobby/messages/route.test.ts -- --runInBand
-```
+    # Windows
+    pnpm.cmd --filter web dev
 
-# The test suite includes a Supabase **mock** (`apps/web/src/__mocks__/supabaseServer.mock.ts`) so you can run tests locally without a live database.
-
-- **GitHub Actions** run on push & PR:
-
-  - pnpm install (workspaces)
-  - Hardhat compile
-  - Next.js build (typecheck + eslint)
-
-- Secrets live in **Repository Settings → Secrets and variables → Actions**
-
-  - Examples: `HUMANODE_RPC_URL`, `PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE` (if you later need it for server actions/tests)
-
-- `main` is protected; PRs go to `dev` first.
-  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+    # open http://localhost:3000
 
 ---
 
-## Linting & formatting
+## API surface (current)
 
-<<<<<<< HEAD
+- `GET /api/health` → `{ ok: true }`
+- `GET /api/lobby/messages?limit=n` → recent lobby messages
+- `POST /api/lobby/messages` → `{ senderAddress, body }`  
+  - **HTTP rate-limit:** ~**5 msgs / 30s / address** → `429` on exceed
+- `GET /api/chats` / `POST /api/chats`
+- `GET /api/chats/[id]/messages` / `POST /api/chats/[id]/messages`
+- `POST /api/chats/dm` *(stub: will gate by biomapped nicknames via `ProfileRegistry` read)*
 
-- # **Prettier** is configured at the repo root. Run:
-
-* Branch: `feat/*`, `fix/*`, `chore/*`
-* PRs → `dev`; keep commits focused
-* Make sure CI is green (build, typecheck, lint)
-* No secrets in commits
-
-  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
-
-  ```bash
-  pnpm run format:check
-  pnpm run format
-  ```
-
-- **ESLint** runs via `lint-staged` on commit and can be invoked manually:
-
-  ```bash
-  pnpm -C apps/web run lint
-  ```
-
-- **Husky** (v10) sets pre-commit hooks. If needed (e.g., emergency), you can bypass with `--no-verify`—but please fix issues instead of bypassing when possible.
+> **Never** put `page.tsx` under `/app/api/**` — it collides with route handlers.
 
 ---
 
-## Contributing guide
+## Roadmap (near-term)
 
-1. **Fork / branch**: `feature/<thing>`, `fix/<thing>`, `refactor/<thing>`.
-2. **Conventional commits** are appreciated: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`…
-3. **Before pushing**:
-
-   - `pnpm run format:check` (root)
-   - `pnpm -C apps/web test`
-   - `pnpm -C apps/web build`
-
-4. **Open a PR** against `dev`.
-
-   - Fill a clear description.
-   - Ensure CI is green.
-
-**Branch protection**: the repo may require certain checks (e.g., `CI / build (push)`, CodeQL). If you see “checks expected”, wait for GitHub Actions to start or re-run them.
+1. **Supabase Realtime**
+   - Live lobby & room messages
+   - Presence (`address` online), typing indicators
+2. **Direct Messages (biomapped-only)**
+   - Deterministic `roomId = keccak256(sort([addrA, addrB]).join(':'))`
+   - RLS via `room_members`
+3. **Durable rate limit**
+   - Upstash Redis (sliding window); headers: `RateLimit-Remaining`, `Retry-After`
+4. **Security pass**
+   - Server-side sanitize content; CSP (no inline scripts), `X-Content-Type-Options`, `Referrer-Policy`
+5. **E2E**
+   - Playwright for `/lobby` and `/chats/[id]`
 
 ---
 
-## Development tips (Windows)
+## Contributing
 
-- Use **PowerShell** or **Git Bash**. When in doubt, prefer `pnpm.cmd`.
-- Line endings are normalised via `.gitattributes`. If you see warnings, you’re safe to ignore.
-- Jest sometimes caches aggressively. If tests aren’t discovered, try:
+### Branching model
+- Protected **`dev`** branch.
+- Work on feature branches → PR to **`dev`**.
+- Sync **`dev` → `main`** via **rebase (no merge commits)** using a sync branch.
+- Required checks must pass (names match workflow jobs).
 
-  ```bash
-  pnpm -C apps/web test -- --clearCache
-  ```
+### Scripts (root)
+
+    # macOS / Linux
+    pnpm format:check
+    pnpm -C apps/web test
+    pnpm -C apps/web build
+
+    # Windows
+    pnpm.cmd format:check
+    pnpm.cmd -C apps/web test
+    pnpm.cmd -C apps/web build
+
+### CI
+- GitHub Actions: checkout, setup Node from `.nvmrc`, setup pnpm, workspace install, `format:check`, web tests, web build.
+- CodeQL workflow included to satisfy protected-branch “Expected” checks.
 
 ---
 
-## Security
+## Troubleshooting (Windows & pnpm)
 
-Please disclose security issues privately—do **not** open a public issue first. See `SECURITY.md` if present, or contact the maintainers.
+- Prefer `pnpm.cmd` in shells that require it.
+- If you see EBUSY / lockfile issues:
+  - Close watchers (VSCode, other terminals) and retry `pnpm.cmd install`.
+- Ensure files are **UTF-8 (no BOM)**; `.gitattributes` enforces **LF** endings.
+- If env validation fails, check `apps/web/src/env.ts` error output.
+
+---
 
 ## License
 
-See `LICENSE` in the repo.
-
----
-
-## FAQ
-
-<<<<<<< HEAD
-**Q: Tests can’t find my file on Windows.**
-
-- Ensure the path is under `apps/web/src` and the file name matches `*.test.ts(x)`.
-- Run with an explicit path: `pnpm -C apps/web test src/app/api/lobby/messages/route.test.ts -- --runInBand`.
-
-**Q: API tests fail with 500.**
-
-- Confirm your Supabase env vars are set for the web app (`apps/web/.env.local`).
-- If you’re running tests only, the Supabase server is mocked; errors usually mean a typo or path mismatch. Re-install deps and retry.
-
----
-
-# Happy hacking! If anything is unclear, open a PR with improvements to this README or file an issue. 🙌
-
-- [ ] Private chats (address ↔ address) via ChatRegistry events
-- [ ] Group chats (public & private)
-- [ ] Supabase Realtime feed for lobby (optional)
-- [ ] Basic E2E tests for API routes
-- [ ] More robust biomapper UX (edge cases, error states)
-
----
-
-## Troubleshooting
-
-- **405 from `/api/...`**: Ensure your `route.ts` exports `GET`/`POST` functions.
-- **“stream did not contain valid UTF-8”**: Recreate the file with UTF-8 (no BOM). We fixed this for `NicknameForm.tsx`.
-- **“BigInt literals are not available…”**: TypeScript target must be **ES2020** (already set in `tsconfig.json`).
-- **“Cannot find module 'webpack' types”**: We avoid importing webpack types in Next config. Use the built-in `config` param without typing it.
-- **Address mismatch**: Run `pnpm run sync:addresses` after any deploy.
-  main
-  > > > > > > > 2206f99 (chore(lint-staged): don't fail on warnings; keep autofix (#26))
+MIT
