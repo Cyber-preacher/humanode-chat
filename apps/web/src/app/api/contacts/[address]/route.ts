@@ -1,44 +1,48 @@
 import { NextResponse } from 'next/server';
 import { z as _zod } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { ensureBiomapped } from '@/lib/biomap';
 
 const Params = _zod.object({
-  ownerAddress: _zod.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
   address: _zod.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
 });
 
-export async function DELETE(
-  req: Request,
-  ctx: { params: Promise<{ address: string }> } // Next 15 typedRoutes expects Promise here
-) {
-  const { address } = await ctx.params;
-  const url = new URL(req.url);
+function getCookieOwner(req: Request): string | null {
+  const raw = req.headers.get('cookie') || '';
+  const parts = raw.split(/;\s*/);
+  for (const p of parts) {
+    const [k, ...rest] = p.split('=');
+    if (k === 'hm_owner') return decodeURIComponent(rest.join('=') || '').toLowerCase();
+  }
+  return null;
+}
+function requireGate(): boolean {
+  return String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
+}
 
-  const parsed = Params.safeParse({
-    ownerAddress: url.searchParams.get('ownerAddress'),
-    address,
-  });
+export async function DELETE(req: Request, ctx: { params: Promise<{ address: string }> }) {
+  const { address } = await ctx.params;
+  const parsed = Params.safeParse({ address });
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'Invalid address' }, { status: 400 });
   }
 
-  const owner = parsed.data.ownerAddress.toLowerCase();
-  const contact = parsed.data.address.toLowerCase();
+  const ownerFromCookie = getCookieOwner(req);
+  const owner =
+    ownerFromCookie ??
+    (!requireGate()
+      ? (new URL(req.url).searchParams.get('ownerAddress') || '').toLowerCase()
+      : null);
 
-  const gate = await ensureBiomapped(owner);
-  if (!gate.ok) {
-    return NextResponse.json({ ok: false, error: gate.error }, { status: gate.status });
+  if (!owner) {
+    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   const supabase = getSupabaseAdmin();
-
-  // Use delete().eq().eq() order to satisfy Supabase TS types
   const { error } = await supabase
     .from('contacts')
     .delete()
     .eq('owner_address', owner)
-    .eq('contact_address', contact);
+    .eq('contact_address', parsed.data.address.toLowerCase());
 
   if (error) {
     return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
