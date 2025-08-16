@@ -1,28 +1,35 @@
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+// hardhat.config.js
+require('dotenv').config();
 require('@nomicfoundation/hardhat-toolbox');
 
-const HUMANODE_RPC_URL = process.env.HUMANODE_RPC_URL;
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const {
+  PRIVATE_KEY,
+  // Canonical (preferred)
+  HUMANODE_RPC_URL,
+  // Fallbacks (accept any of these if set)
+  Humanode_RPC_URL,
+  RPC_URL,
+  NEXT_PUBLIC_RPC_URL, // last resort, only if you intentionally reuse it
+} = process.env;
 
-/** @type import('hardhat/config').HardhatUserConfig */
+const URL = HUMANODE_RPC_URL || Humanode_RPC_URL || RPC_URL || NEXT_PUBLIC_RPC_URL || '';
+
+if (!URL) {
+  console.warn(
+    '⚠️  No RPC URL set. Define HUMANODE_RPC_URL in your root .env (or one of the accepted fallbacks).'
+  );
+}
+
 module.exports = {
   solidity: {
     version: '0.8.26',
     settings: { optimizer: { enabled: true, runs: 200 } },
   },
   networks: {
-    ...(HUMANODE_RPC_URL && PRIVATE_KEY
-      ? {
-          humanode: {
-            url: HUMANODE_RPC_URL,
-            chainId: 14853,
-            accounts: [PRIVATE_KEY],
-            // Use number or string (NOT BigInt)
-            gasPrice: 10000000000000, // 10_000 gwei
-            // gasPrice: "10000000000000", // also ok
-          },
-        }
-      : {}),
+    humanode_testnet5: {
+      chainId: 14853,
+      url: URL,
+      accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
+    },
   },
 };

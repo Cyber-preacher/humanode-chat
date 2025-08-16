@@ -1,42 +1,35 @@
+// apps/web/src/components/NicknameForm.tsx
 'use client';
 
-import React from 'react';
+import { useState } from 'react';
+import { useWriteContract } from 'wagmi';
+import { getSetNicknameConfig } from '@/lib/biomap';
 
-type Props = {
-  newNick: string;
-  setNewNick: (v: string) => void;
-  onSubmit: () => void;
-  isSubmitting: boolean;
-  canSubmit: boolean;
-};
+export default function NicknameForm() {
+  const [nickname, setNickname] = useState('');
+  const { data: txHash, isPending, writeContractAsync } = useWriteContract();
 
-export default function NicknameForm({
-  newNick,
-  setNewNick,
-  onSubmit,
-  isSubmitting,
-  canSubmit,
-}: Props) {
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!nickname.trim()) return;
+
+    const cfg = await getSetNicknameConfig(nickname.trim());
+    await writeContractAsync(cfg);
+    setNickname('');
+  }
+
   return (
-    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+    <form onSubmit={onSubmit} className="flex gap-2 items-center">
       <input
-        placeholder="Choose a nickname"
-        value={newNick}
-        onChange={(e) => setNewNick(e.target.value)}
-        style={{ padding: 8, flex: 1, border: '1px solid #d1d5db', borderRadius: 8 }}
+        className="border rounded px-2 py-1"
+        placeholder="Your nickname"
+        value={nickname}
+        onChange={(e) => setNickname(e.target.value)}
       />
-      <button
-        onClick={onSubmit}
-        disabled={!canSubmit}
-        style={{
-          padding: '8px 12px',
-          borderRadius: 8,
-          opacity: canSubmit ? 1 : 0.6,
-          cursor: canSubmit ? 'pointer' : 'not-allowed',
-        }}
-      >
-        {isSubmitting ? 'Setting...' : 'Set nickname'}
+      <button type="submit" disabled={isPending} className="border px-3 py-1 rounded">
+        {isPending ? 'Setting…' : 'Set nickname'}
       </button>
-    </div>
+      {txHash && <span className="text-xs opacity-70">tx: {String(txHash).slice(0, 10)}…</span>}
+    </form>
   );
 }
