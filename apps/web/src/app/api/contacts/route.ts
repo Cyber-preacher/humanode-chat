@@ -1,3 +1,4 @@
+
 // apps/web/src/app/api/contacts/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
@@ -177,4 +178,3 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (delErr) return new NextResponse(String(delErr), { status: 500 });
 
   return new NextResponse(null, { status: 204 });
-}
