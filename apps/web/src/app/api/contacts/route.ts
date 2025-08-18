@@ -1,11 +1,8 @@
-
 // apps/web/src/app/api/contacts/route.ts
 import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-// Mock schema (per __mocks__/supabaseServer.mock.ts):
-// id, owner_address, contact_address, label?, created_at
-
+// Mock schema: id, owner_address, contact_address, label?, created_at
 type ContactRow = {
   id: string;
   owner_address: string;
@@ -13,9 +10,9 @@ type ContactRow = {
   label: string | null;
 };
 
-type ContactsResp =
-  | { ok: true; contacts: ContactRow[] }
-  | { ok: false; error: string; contacts: [] };
+type ContactsOk = { ok: true; contacts: ContactRow[] };
+type ContactsErr = { ok: false; error: string; contacts: [] };
+type ContactsResp = ContactsOk | ContactsErr;
 
 function parseUrlencoded(raw: string): Record<string, string> | null {
   const params = new URLSearchParams(raw);
@@ -26,9 +23,8 @@ function parseUrlencoded(raw: string): Record<string, string> | null {
   return out;
 }
 
-// Robust body parsing for Request/NextRequest without `any`
+// Robust body parsing for Request/NextRequest
 async function readJson(req: Request | NextRequest): Promise<unknown> {
-  // Prefer reading the raw stream; works for both Request & NextRequest
   const stream = (req as Request).body;
   if (stream) {
     const raw = await new Response(stream).text();
@@ -40,7 +36,6 @@ async function readJson(req: Request | NextRequest): Promise<unknown> {
       }
     }
   }
-  // Fallback: try .text() if available (Request has it; NextRequest may not)
   if (typeof (req as Request).text === 'function') {
     const raw = await (req as Request).text();
     if (raw) {
@@ -51,7 +46,6 @@ async function readJson(req: Request | NextRequest): Promise<unknown> {
       }
     }
   }
-  // Final attempt: try .json() if available
   if (typeof (req as Request).json === 'function') {
     try {
       return await (req as Request).json();
@@ -128,7 +122,6 @@ export async function POST(req: Request | NextRequest): Promise<NextResponse> {
 
   const supabase = getSupabaseAdmin();
 
-  // Duplicate check on mock’s column names
   const { data: existing, error: selErr } = await supabase
     .from('contacts')
     .select('id')
@@ -138,10 +131,11 @@ export async function POST(req: Request | NextRequest): Promise<NextResponse> {
   if (selErr) return new NextResponse(String(selErr), { status: 500 });
   if (existing && existing.length) return new NextResponse('Duplicate', { status: 409 });
 
-  // Insert using mock’s column names
+  // Insert and check via .single() which our mock supports
   const { error: insErr } = await supabase
     .from('contacts')
-    .insert([{ owner_address, contact_address, label }]);
+    .insert([{ owner_address, contact_address, label }])
+    .single();
   if (insErr) return new NextResponse(String(insErr), { status: 500 });
 
   return NextResponse.json({ ok: true }, { status: 201 });
@@ -178,3 +172,4 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (delErr) return new NextResponse(String(delErr), { status: 500 });
 
   return new NextResponse(null, { status: 204 });
+}
