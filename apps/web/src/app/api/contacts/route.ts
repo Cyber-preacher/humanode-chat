@@ -1,89 +1,175 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+// apps/web/src/app/api/contacts/route.ts
+import { NextResponse, NextRequest } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-const hexAddr = z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address');
+// Mock schema: id, owner_address, contact_address, label?, created_at
+type ContactRow = {
+  id: string;
+  owner_address: string;
+  contact_address: string;
+  label: string | null;
+};
 
-const GetQuery = z.object({
-  ownerAddress: hexAddr,
-});
+type ContactsOk = { ok: true; contacts: ContactRow[] };
+type ContactsErr = { ok: false; error: string; contacts: [] };
+type ContactsResp = ContactsOk | ContactsErr;
 
-const PostBody = z.object({
-  ownerAddress: hexAddr,
-  contactAddress: hexAddr,
-});
-
-export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const parsed = GetQuery.safeParse({
-    ownerAddress: url.searchParams.get('ownerAddress') ?? '',
-  });
-
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'Invalid ownerAddress' }, { status: 400 });
-  }
-
-  const owner = parsed.data.ownerAddress.toLowerCase();
-  const supabase = getSupabaseAdmin();
-
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('*')
-    .eq('owner_address', owner)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: String(error.message ?? error) }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, contacts: data }, { status: 200 });
+function parseUrlencoded(raw: string): Record<string, string> | null {
+  const params = new URLSearchParams(raw);
+  const keys = Array.from(params.keys());
+  if (!keys.length) return null;
+  const out: Record<string, string> = {};
+  for (const k of keys) out[k] = params.get(k) ?? '';
+  return out;
 }
 
-export async function POST(req: NextRequest) {
-  const bodyUnknown = (await req.json().catch(() => null)) as unknown;
-  const parsed = PostBody.safeParse(bodyUnknown);
-
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'Invalid body' }, { status: 400 });
+// Robust body parsing for Request/NextRequest
+async function readJson(req: Request | NextRequest): Promise<unknown> {
+  const stream = (req as Request).body;
+  if (stream) {
+    const raw = await new Response(stream).text();
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return parseUrlencoded(raw) ?? {};
+      }
+    }
   }
+  if (typeof (req as Request).text === 'function') {
+    const raw = await (req as Request).text();
+    if (raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return parseUrlencoded(raw) ?? {};
+      }
+    }
+  }
+  if (typeof (req as Request).json === 'function') {
+    try {
+      return await (req as Request).json();
+    } catch {
+      /* ignore */
+    }
+  }
+  return {};
+}
 
-  const owner = parsed.data.ownerAddress.toLowerCase();
-  const contact = parsed.data.contactAddress.toLowerCase();
+// Normalize request body keys → mock schema keys
+function normalizeBodyToMock(body: unknown): {
+  owner_address: string;
+  contact_address: string;
+  label: string | null;
+} {
+  const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
+  const owner_address = String(
+    b.owner_address ?? b.ownerAddress ?? b.owner ?? b.owner_id ?? b.ownerId ?? ''
+  );
+  const contact_address = String(
+    b.contact_address ?? b.contactAddress ?? b.address ?? b.contact ?? ''
+  );
+  let label: string | null = null;
+  if (b.label != null) label = String(b.label);
+  else if (b.nickname != null) label = String(b.nickname);
+  return { owner_address, contact_address, label };
+}
 
-  if (owner === contact) {
-    return NextResponse.json({ ok: false, error: 'Cannot add yourself' }, { status: 400 });
+// Read owner filter from query (support aliases)
+function getOwnerFromQuery(url: URL): string | undefined {
+  return (
+    url.searchParams.get('owner_address') ??
+    url.searchParams.get('ownerAddress') ??
+    url.searchParams.get('owner') ??
+    undefined
+  )?.toString();
+}
+
+/**
+ * GET /api/contacts?ownerAddress=0x...  (also supports ?owner= and ?owner_address=)
+ * Response: { ok: true, contacts: ContactRow[] }
+ */
+export async function GET(req: Request): Promise<NextResponse<ContactsResp>> {
+  const url = new URL(req.url);
+  const ownerFilter = getOwnerFromQuery(url);
+
+  const supabase = getSupabaseAdmin();
+  const base = supabase.from('contacts').select('*');
+
+  const { data, error } = ownerFilter ? await base.eq('owner_address', ownerFilter) : await base;
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: String(error), contacts: [] }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true, contacts: (data as ContactRow[]) ?? [] }, { status: 200 });
+}
+
+/**
+ * POST /api/contacts
+ * Body accepts any of:
+ *  - { owner_address, contact_address, label? }
+ *  - { ownerAddress, address, nickname? }
+ *  - { owner, contact, label? }
+ * Returns: 201 { ok: true } | 409 Duplicate | 400 Invalid
+ */
+export async function POST(req: Request | NextRequest): Promise<NextResponse> {
+  const raw = await readJson(req);
+  const { owner_address, contact_address, label } = normalizeBodyToMock(raw);
+
+  if (!owner_address || !contact_address) {
+    return new NextResponse('Invalid body', { status: 400 });
   }
 
   const supabase = getSupabaseAdmin();
 
-  // Duplicate check (head + count)
-  const { count: dupCount, error: countErr } = await supabase
+  const { data: existing, error: selErr } = await supabase
     .from('contacts')
-    .select('id', { count: 'exact', head: true })
-    .eq('owner_address', owner)
-    .eq('contact_address', contact);
+    .select('id')
+    .eq('owner_address', owner_address)
+    .eq('contact_address', contact_address)
+    .limit(1);
+  if (selErr) return new NextResponse(String(selErr), { status: 500 });
+  if (existing && existing.length) return new NextResponse('Duplicate', { status: 409 });
 
-  if (countErr) {
-    return NextResponse.json(
-      { ok: false, error: String(countErr.message ?? countErr) },
-      { status: 500 }
-    );
-  }
-
-  if ((dupCount ?? 0) > 0) {
-    return NextResponse.json({ ok: false, error: 'Contact already exists' }, { status: 409 });
-  }
-
-  const { error: insertErr } = await supabase
+  // Insert and check via .single() which our mock supports
+  const { error: insErr } = await supabase
     .from('contacts')
-    .insert([{ owner_address: owner, contact_address: contact }]);
-
-  if (insertErr) {
-    return NextResponse.json(
-      { ok: false, error: String(insertErr.message ?? insertErr) },
-      { status: 500 }
-    );
-  }
+    .insert([{ owner_address, contact_address, label }])
+    .single();
+  if (insErr) return new NextResponse(String(insErr), { status: 500 });
 
   return NextResponse.json({ ok: true }, { status: 201 });
+}
+
+/**
+ * DELETE /api/contacts?id=<contactId>
+ * TEMP check: compares `x-owner-address` header with row.owner_address (case-insensitive)
+ * Returns 204 / 404 / 403 accordingly
+ */
+export async function DELETE(req: NextRequest): Promise<NextResponse> {
+  const id = req.nextUrl.searchParams.get('id');
+  if (!id) return new NextResponse('Missing id', { status: 400 });
+
+  const ownerHeader = (req.headers.get('x-owner-address') ?? '').trim();
+  if (!ownerHeader) return new NextResponse('Forbidden', { status: 403 });
+
+  const supabase = getSupabaseAdmin();
+
+  const { data: rows, error: selErr } = await supabase
+    .from('contacts')
+    .select('id, owner_address')
+    .eq('id', id)
+    .limit(1);
+  if (selErr) return new NextResponse(String(selErr), { status: 500 });
+  if (!rows || rows.length === 0) return new NextResponse('Not found', { status: 404 });
+
+  const row = rows[0] as Pick<ContactRow, 'id' | 'owner_address'>;
+  if ((row.owner_address ?? '').toLowerCase() !== ownerHeader.toLowerCase()) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+
+  const { error: delErr } = await supabase.from('contacts').delete().eq('id', id);
+  if (delErr) return new NextResponse(String(delErr), { status: 500 });
+
+  return new NextResponse(null, { status: 204 });
 }
