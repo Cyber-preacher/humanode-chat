@@ -1,4 +1,3 @@
-
 import Link from 'next/link';
 
 import NicknameForm from '@/components/NicknameForm';
@@ -22,7 +21,6 @@ export default function Home() {
         <h2 style={{ marginTop: 0 }}>Set Nickname</h2>
         <NicknameForm />
       </section>
-
     </main>
   );
 }
