@@ -1,7 +1,6 @@
-# Normalize text files to LF in repo; Windows will convert in working tree if configured
+# .gitattributes at repo root
 * text=auto eol=lf
 
-# Common source files (explicit LF)
 *.js   text eol=lf
 *.jsx  text eol=lf
 *.ts   text eol=lf
@@ -12,5 +11,4 @@
 *.css  text eol=lf
 *.md   text eol=lf
 
-# Lockfiles should be LF to avoid churn
 pnpm-lock.yaml text eol=lf

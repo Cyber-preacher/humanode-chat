@@ -32,7 +32,7 @@ async function libMapFor(contractName, libName, libAddress) {
   }
   if (Object.keys(map).length === 0) {
     console.log(
-      `[warn] No linkReferences found for ${libName} in ${contractName}. Printing link refs for debug:`
+      `[warn] No linkReferences found for ${libName} in ${contractName}. Printing link refs for debug:`,
     );
     console.log(links);
   } else {

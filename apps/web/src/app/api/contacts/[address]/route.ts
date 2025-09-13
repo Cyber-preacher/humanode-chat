@@ -1,52 +1,74 @@
-import { NextResponse } from 'next/server';
-import { z as _zod } from 'zod';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-const Params = _zod.object({
-  address: _zod.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-});
-
-function getCookieOwner(req: Request): string | null {
-  const raw = req.headers.get('cookie') || '';
-  const parts = raw.split(/;\s*/);
-  for (const p of parts) {
-    const [k, ...rest] = p.split('=');
-    if (k === 'hm_owner') return decodeURIComponent(rest.join('=') || '').toLowerCase();
-  }
-  return null;
-}
-function requireGate(): boolean {
-  return String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
 }
 
-export async function DELETE(req: Request, ctx: { params: Promise<{ address: string }> }) {
-  const { address } = await ctx.params;
-  const parsed = Params.safeParse({ address });
-  if (!parsed.success) {
-    return NextResponse.json({ ok: false, error: 'Invalid address' }, { status: 400 });
+function pickLabel(input: unknown): string | null {
+  let val: unknown = input;
+  if (isRecord(input)) {
+    const fromLabel = input['label'];
+    const fromNickname = input['nickname'];
+    val = typeof fromLabel !== 'undefined' ? fromLabel : fromNickname;
   }
+  if (val === null || typeof val === 'undefined') return null;
+  const s = String(val).trim();
+  return s.length ? s : null;
+}
 
-  const ownerFromCookie = getCookieOwner(req);
-  const owner =
-    ownerFromCookie ??
-    (!requireGate()
-      ? (new URL(req.url).searchParams.get('ownerAddress') || '').toLowerCase()
-      : null);
+/**
+ * PATCH /api/contacts/:address
+ * - segment name is "address" (row id); also accepts {id} for legacy tests
+ * - body: { label?: string | null } (accepts "nickname")
+ * - header guard: x-owner-address must match row owner
+ */
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ address?: string; id?: string }> },
+) {
+  const { address, id } = await ctx.params;
+  const rowId = address ?? id;
+  if (!rowId) return new NextResponse('Missing id', { status: 400 });
 
-  if (!owner) {
-    return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-  }
+  const ownerHeader = (req.headers.get('x-owner-address') ?? '').trim();
+  if (!ownerHeader) return new NextResponse('Forbidden', { status: 403 });
 
+  let parsed: unknown = {};
+  try {
+    parsed = await req.json();
+  } catch {}
+
+  const newLabel = pickLabel(parsed);
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase
+
+  // Verify owner
+  const { data: row, error: selErr } = await supabase
     .from('contacts')
-    .delete()
-    .eq('owner_address', owner)
-    .eq('contact_address', parsed.data.address.toLowerCase());
+    .select('id, owner_address')
+    .eq('id', rowId)
+    .limit(1)
+    .single();
+  if (selErr) return new NextResponse(String(selErr), { status: 500 });
+  if (!row) return new NextResponse('Not found', { status: 404 });
+  if ((row.owner_address ?? '') !== ownerHeader)
+    return new NextResponse('Forbidden', { status: 403 });
 
-  if (error) {
-    return NextResponse.json({ ok: false, error: 'Database error' }, { status: 500 });
-  }
+  // Update
+  const { error: updErr } = await supabase
+    .from('contacts')
+    .update({ label: newLabel })
+    .eq('id', rowId);
+  if (updErr) return new NextResponse(String(updErr), { status: 500 });
 
-  return new NextResponse(null, { status: 204 });
+  // Return updated row
+  const { data: updated, error: reSelErr } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('id', rowId)
+    .limit(1)
+    .single();
+  if (reSelErr) return new NextResponse(String(reSelErr), { status: 500 });
+
+  return NextResponse.json({ ok: true, contact: updated ?? null }, { status: 200 });
 }

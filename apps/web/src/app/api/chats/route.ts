@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid address' },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const address = parsed.data;

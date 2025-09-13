@@ -24,7 +24,7 @@ export async function listContacts(ownerAddress: string): Promise<ListContactsOk
 export async function addContact(
   ownerAddress: string,
   contactAddress: string,
-  alias?: string
+  alias?: string,
 ): Promise<OkOnly> {
   const res = await fetch(`/api/contacts`, {
     method: 'POST',

@@ -43,7 +43,7 @@ function toQuery(params: Record<string, string | number | undefined>) {
 /** New primary API */
 export async function fetchMessages(
   chatSlug: string,
-  opts?: { limit?: number }
+  opts?: { limit?: number },
 ): Promise<ChatMessage[]> {
   const qs = toQuery({ limit: opts?.limit });
   const res = await fetch(`/api/chats/${encodeURIComponent(chatSlug)}/messages${qs}`, {
@@ -65,7 +65,7 @@ export async function fetchMessages(
 
 export async function postMessage(
   chatSlug: string,
-  dto: { senderAddress: string; body: string }
+  dto: { senderAddress: string; body: string },
 ): Promise<ChatMessage> {
   const res = await fetch(`/api/chats/${encodeURIComponent(chatSlug)}/messages`, {
     method: 'POST',
@@ -92,7 +92,7 @@ export async function postMessage(
 /** Accepts either `{ limit }` or a bare number like `50` */
 export function requireGetChatMessages(
   chatSlug: string,
-  optsOrLimit?: { limit?: number } | number
+  optsOrLimit?: { limit?: number } | number,
 ): Promise<ChatMessage[]> {
   const opts = typeof optsOrLimit === 'number' ? { limit: optsOrLimit } : optsOrLimit ?? undefined;
   return fetchMessages(chatSlug, opts);

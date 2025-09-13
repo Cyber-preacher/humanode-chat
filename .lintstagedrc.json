@@ -1,6 +1,0 @@
-{
-  "apps/web/**/*.{js,jsx,ts,tsx}": ["pnpm.cmd -C apps/web exec eslint --fix --max-warnings=0"],
-  "apps/web/**/*.{json,md,yml,yaml,css}": [
-    "pnpm.cmd -w exec prettier --config ./.prettierrc.json --write"
-  ]
-}

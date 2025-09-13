@@ -16,7 +16,7 @@ const URL = HUMANODE_RPC_URL || Humanode_RPC_URL || RPC_URL || NEXT_PUBLIC_RPC_U
 
 if (!URL) {
   console.warn(
-    '⚠️  No RPC URL set. Define HUMANODE_RPC_URL in your root .env (or one of the accepted fallbacks).'
+    '⚠️  No RPC URL set. Define HUMANODE_RPC_URL in your root .env (or one of the accepted fallbacks).',
   );
 }
 

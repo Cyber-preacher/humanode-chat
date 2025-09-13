@@ -56,14 +56,14 @@ export default function SidebarClient({
       fallbackData: { contacts: initialContacts },
       keepPreviousData: true,
       revalidateOnFocus: false,
-    }
+    },
   );
 
   const chats = (chatsData?.chats ?? []).filter(
     (c) =>
       !query ||
       (c.title ?? '').toLowerCase().includes(query.toLowerCase()) ||
-      (c.lastMessage?.text ?? '').toLowerCase().includes(query.toLowerCase())
+      (c.lastMessage?.text ?? '').toLowerCase().includes(query.toLowerCase()),
   );
 
   const contacts = (contactsData?.contacts ?? []).filter((c) => {

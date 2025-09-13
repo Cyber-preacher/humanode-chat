@@ -64,10 +64,10 @@ function normalizeBodyToMock(body: unknown): {
 } {
   const b = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
   const owner_address = String(
-    b.owner_address ?? b.ownerAddress ?? b.owner ?? b.owner_id ?? b.ownerId ?? ''
+    b.owner_address ?? b.ownerAddress ?? b.owner ?? b.owner_id ?? b.ownerId ?? '',
   );
   const contact_address = String(
-    b.contact_address ?? b.contactAddress ?? b.address ?? b.contact ?? ''
+    b.contact_address ?? b.contactAddress ?? b.address ?? b.contact ?? '',
   );
   let label: string | null = null;
   if (b.label != null) label = String(b.label);
