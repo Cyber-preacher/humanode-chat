@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     if (a === b) {
       return NextResponse.json(
         { ok: false, error: 'Cannot create a DM with yourself' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

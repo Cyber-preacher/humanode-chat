@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     if ((recentCount ?? 0) >= 5) {
       return NextResponse.json(
         { ok: false, error: 'Rate limit exceeded. Please slow down.' },
-        { status: 429 }
+        { status: 429 },
       );
     }
 

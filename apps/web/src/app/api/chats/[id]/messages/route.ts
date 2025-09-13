@@ -1,118 +1,101 @@
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 
-const GetQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
+type ChatRow = { id: string; slug: string };
+type MessageRow = {
+  id: string;
+  chat_id?: string;
+  sender_address: string;
+  body: string;
+  created_at: string;
+};
 
-const PostBody = z.object({
-  senderAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-  body: z
-    .string()
-    .trim()
-    .min(1, 'Message cannot be empty')
-    .max(2000, 'Message too long (max 2000 chars)'),
-});
+const RATE_LIMIT = 5;
+const RATE_WINDOW_MS = 30_000;
 
-const RATE_LIMIT_WINDOW_SEC = 30;
-const RATE_LIMIT_MAX = 5;
-
-// GET /api/chats/[id]/messages?limit=50
-export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  try {
-    const { id } = await ctx.params; // slug
-    const { searchParams } = new URL(req.url);
-    const parsed = GetQuery.safeParse({ limit: searchParams.get('limit') });
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      );
-    }
-    const { limit } = parsed.data;
-
-    const supa = getSupabaseAdmin();
-
-    // Find chat by slug
-    const { data: chat, error: chatErr } = await supa
-      .from('chats')
-      .select('id')
-      .eq('slug', id)
-      .single();
-    if (chatErr || !chat) throw chatErr || new Error('Chat not found');
-
-    const { data, error } = await supa
-      .from('messages')
-      .select('id, chat_id, sender_address, body, created_at')
-      .eq('chat_id', chat.id)
-      .order('created_at', { ascending: true })
-      .limit(limit);
-
-    if (error) throw error;
-
-    return NextResponse.json({ ok: true, messages: data ?? [] });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
+async function findChatBySlug(slug: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('chats')
+    .select('id, slug')
+    .eq('slug', slug)
+    .limit(1)
+    .single();
+  if (error) throw new Error(String(error));
+  return data as ChatRow | null;
 }
 
-// POST /api/chats/[id]/messages  { senderAddress, body }
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const slug = id ?? '';
+  if (!slug) return NextResponse.json({ ok: false, error: 'Missing slug' }, { status: 400 });
+
+  const chat = await findChatBySlug(slug);
+  if (!chat) return NextResponse.json({ ok: false, error: 'Chat not found' }, { status: 404 });
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('chat_id', chat.id)
+    .order('created_at', { ascending: true });
+
+  if (error)
+    return NextResponse.json({ ok: false, error: String(error), messages: [] }, { status: 500 });
+
+  return NextResponse.json({ ok: true, messages: (data as MessageRow[]) ?? [] }, { status: 200 });
+}
+
+function isValidAddress(addr: unknown): addr is string {
+  return typeof addr === 'string' && /^0x[0-9a-fA-F]{40}$/.test(addr);
+}
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  const slug = id ?? '';
+  if (!slug) return new NextResponse('Invalid chat slug', { status: 400 });
+
+  let parsed: unknown = null;
   try {
-    const { id } = await ctx.params; // slug
-    const json = await req.json();
-    const parsed = PostBody.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      );
-    }
-
-    const sender_address = parsed.data.senderAddress.toLowerCase();
-    const body = parsed.data.body.trim();
-
-    const supa = getSupabaseAdmin();
-
-    // Find chat by slug
-    const { data: chat, error: chatErr } = await supa
-      .from('chats')
-      .select('id')
-      .eq('slug', id)
-      .single();
-    if (chatErr || !chat) throw chatErr || new Error('Chat not found');
-
-    // Rate limit per sender per chat
-    const sinceIso = new Date(Date.now() - RATE_LIMIT_WINDOW_SEC * 1000).toISOString();
-    const { count: recentCount, error: countErr } = await supa
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('chat_id', chat.id)
-      .eq('sender_address', sender_address)
-      .gt('created_at', sinceIso);
-
-    if (countErr) throw countErr;
-
-    if (typeof recentCount === 'number' && recentCount >= RATE_LIMIT_MAX) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `Rate limit exceeded. Please wait a bit (≤ ${RATE_LIMIT_MAX} msgs / ${RATE_LIMIT_WINDOW_SEC}s).`,
-        },
-        { status: 429 }
-      );
-    }
-
-    // Insert message
-    const payload = { chat_id: chat.id, sender_address, body };
-    const { data, error } = await supa.from('messages').insert(payload).select().single();
-    if (error) throw error;
-
-    return NextResponse.json({ ok: true, message: data });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    parsed = await req.json();
+  } catch {
+    parsed = null;
   }
+  const obj = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  const senderAddress = typeof obj.senderAddress === 'string' ? obj.senderAddress : '';
+  const text = typeof obj.body === 'string' ? obj.body : '';
+
+  if (!isValidAddress(senderAddress)) {
+    return NextResponse.json({ ok: false, error: 'Invalid Ethereum address' }, { status: 400 });
+  }
+  if (!text.trim()) {
+    return NextResponse.json({ ok: false, error: 'Empty body' }, { status: 400 });
+  }
+
+  const chat = await findChatBySlug(slug);
+  if (!chat) return NextResponse.json({ ok: false, error: 'Chat not found' }, { status: 404 });
+
+  // DB-backed rate limit: 5 per 30s per (sender, chat)
+  const supabase = getSupabaseAdmin();
+  const sinceIso = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
+  const headRes = await supabase
+    .from('messages')
+    .select('id', { head: true, count: 'exact' })
+    .eq('chat_id', chat.id)
+    .eq('sender_address', senderAddress)
+    .gte('created_at', sinceIso);
+
+  const recentCount = (headRes as { count?: number }).count ?? 0;
+  if (recentCount >= RATE_LIMIT) {
+    return NextResponse.json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert([{ chat_id: chat.id, sender_address: senderAddress, body: text }])
+    .single();
+
+  if (error) return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
+
+  return NextResponse.json({ ok: true, message: data as MessageRow }, { status: 201 });
 }

@@ -27,13 +27,13 @@ describe('Contacts API DELETE', () => {
           address: '0xOther',
           nickname: 'Alice',
         }),
-      })
+      }),
     );
     expect(postRes.status).toBe(201);
 
     // List
     const listRes = await GET(
-      makeReq('http://localhost/api/contacts?ownerAddress=0xOwner') as unknown as Request
+      makeReq('http://localhost/api/contacts?ownerAddress=0xOwner') as unknown as Request,
     );
     const listJson = (await listRes.json()) as ListResp;
     expect(listRes.status).toBe(200);
@@ -48,7 +48,7 @@ describe('Contacts API DELETE', () => {
       makeReq(`http://localhost/api/contacts?id=${id}`, {
         method: 'DELETE',
         headers: { 'x-owner-address': '0xOwner' },
-      })
+      }),
     );
     expect(delRes.status).toBe(204);
 
@@ -57,7 +57,7 @@ describe('Contacts API DELETE', () => {
       makeReq(`http://localhost/api/contacts?id=${id}`, {
         method: 'DELETE',
         headers: { 'x-owner-address': '0xOwner' },
-      })
+      }),
     );
     expect(delRes2.status).toBe(404);
   });
@@ -72,11 +72,11 @@ describe('Contacts API DELETE', () => {
           address: '0xO2',
           nickname: 'Bob',
         }),
-      })
+      }),
     );
 
     const listRes = await GET(
-      makeReq('http://localhost/api/contacts?ownerAddress=0xO1') as unknown as Request
+      makeReq('http://localhost/api/contacts?ownerAddress=0xO1') as unknown as Request,
     );
     const listJson = (await listRes.json()) as ListResp;
     const id = listJson.contacts[0]?.id as string;
@@ -85,7 +85,7 @@ describe('Contacts API DELETE', () => {
       makeReq(`http://localhost/api/contacts?id=${id}`, {
         method: 'DELETE',
         headers: { 'x-owner-address': '0xNotOwner' },
-      })
+      }),
     );
     expect(delRes.status).toBe(403);
   });
@@ -95,7 +95,7 @@ describe('Contacts API DELETE', () => {
     expect(noId.status).toBe(400);
 
     const withIdNoHeader = await DELETE(
-      makeReq('http://localhost/api/contacts?id=deadbeef', { method: 'DELETE' })
+      makeReq('http://localhost/api/contacts?id=deadbeef', { method: 'DELETE' }),
     );
     expect(withIdNoHeader.status).toBe(403);
   });

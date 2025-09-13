@@ -29,7 +29,7 @@ export function resolveProfileRegistryAddress(): `0x${string}` {
 
   throw new Error(
     `ProfileRegistry address not found for chain ${chainId}. ` +
-      'Update apps/web/src/addresses.json or set NEXT_PUBLIC_PROFILE_REGISTRY.'
+      'Update apps/web/src/addresses.json or set NEXT_PUBLIC_PROFILE_REGISTRY.',
   );
 }
 
