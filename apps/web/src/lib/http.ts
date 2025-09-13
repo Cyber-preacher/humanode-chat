@@ -33,7 +33,7 @@ export function created<T extends object>(payload: T, init?: ResponseInit): Resp
 export function badRequest(message: string, details?: unknown): Response {
   return NextResponse.json<ApiErr>(
     { ok: false, error: message, ...(details ? { details } : {}) },
-    { status: 400 }
+    { status: 400 },
   );
 }
 

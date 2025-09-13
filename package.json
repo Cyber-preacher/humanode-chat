@@ -37,12 +37,5 @@
     "@biomapper-sdk/core": "^0.4.0",
     "@biomapper-sdk/libraries": "^0.4.0",
     "dotenv": "^17.2.1"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "pnpm --filter web lint --fix",
-      "pnpm --filter web typecheck --noEmit --pretty false"
-    ],
-    "*.{json,md,yml,yaml}": "prettier --write"
   }
 }

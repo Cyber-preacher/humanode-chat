@@ -62,7 +62,7 @@ export default function LobbyChat() {
       },
       (payload: RealtimePostgresInsertPayload<Message>) => {
         setMessages((prev) => [...prev, payload.new]);
-      }
+      },
     );
 
     channel.subscribe((status) => {

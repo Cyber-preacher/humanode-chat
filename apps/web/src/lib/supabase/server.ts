@@ -1,3 +1,4 @@
+﻿/* eslint-disable @typescript-eslint/no-unused-vars */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /** Minimal DB typing for tables we touch. Extend if needed. */
@@ -78,7 +79,7 @@ export function getSupabaseAdmin(): SupabaseClient<Database> {
 
   if (!url || !serviceKey) {
     throw new Error(
-      'Supabase server credentials missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE.'
+      'Supabase server credentials missing. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE.',
     );
   }
 

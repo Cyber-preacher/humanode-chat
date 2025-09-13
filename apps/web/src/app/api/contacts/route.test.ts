@@ -50,7 +50,7 @@ describe('Contacts API', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ownerAddress: owner, contactAddress: contact, alias: 'Carol' }),
-      }) as unknown as Request
+      }) as unknown as Request,
     );
     expect(res1.status).toBe(201);
 
@@ -60,7 +60,7 @@ describe('Contacts API', () => {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ ownerAddress: owner, contactAddress: contact }),
-      }) as unknown as Request
+      }) as unknown as Request,
     );
     expect(res2.status).toBe(409);
   });
