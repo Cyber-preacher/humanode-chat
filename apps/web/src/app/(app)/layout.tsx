@@ -1,3 +1,4 @@
+import { TopBar } from '@/components/TopBar';
 // apps/web/src/app/(app)/layout.tsx
 import React from 'react';
 import SidebarClient from '@/components/SidebarClient';
