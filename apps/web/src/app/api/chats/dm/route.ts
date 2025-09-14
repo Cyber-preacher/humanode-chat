@@ -1,68 +1,38 @@
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { NextResponse } from "next/server"
+import { isAddress } from "viem"
+import { headers } from "next/headers"
 
-const Address = z
-  .string()
-  .regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address')
-  .transform((s) => s.toLowerCase());
+type DmBody = { peerAddress?: string }
 
-const Body = z.object({
-  a: Address,
-  b: Address,
-});
+function canonId(a: string, b: string) {
+  const A = a.toLowerCase()
+  const B = b.toLowerCase()
+  return `dm:${A < B ? A : B}:${A < B ? B : A}`
+}
+
+function bad(status: number, error: string) {
+  return NextResponse.json({ ok: false, error }, { status })
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const parsed = Body.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 },
-      );
-    }
+    // Compatible with different Next typings: may be immediate or Promise-like
+    const maybe = headers() as unknown as Headers | Promise<Headers>
+    const h = maybe instanceof Promise ? await maybe : maybe
 
-    const { a, b } = parsed.data;
-    if (a === b) {
-      return NextResponse.json(
-        { ok: false, error: 'Cannot create a DM with yourself' },
-        { status: 400 },
-      );
-    }
+    const owner = (h.get("x-owner-address") ?? "").trim()
+    if (!isAddress(owner)) return bad(400, "Missing or invalid x-owner-address")
 
-    const [x, y] = [a, b].sort();
-    const slug = `dm:${x}:${y}`;
+    let body: DmBody = {}
+    try { body = (await req.json()) as DmBody } catch {}
 
-    const supa = getSupabaseAdmin();
+    const peer = String(body?.peerAddress ?? "").trim()
+    if (!isAddress(peer)) return bad(400, "Invalid Ethereum address: peerAddress")
+    if (owner.toLowerCase() === peer.toLowerCase()) return bad(400, "Cannot create DM with self")
 
-    const { data: existing } = await supa
-      .from('chats')
-      .select('id, slug, is_public')
-      .eq('slug', slug)
-      .maybeSingle();
-
-    if (existing?.id) {
-      return NextResponse.json({ ok: true, chat: existing });
-    }
-
-    const { data: chat, error: cErr } = await supa
-      .from('chats')
-      .insert({ slug, is_public: false })
-      .select('id, slug, is_public')
-      .single();
-
-    if (cErr || !chat?.id) throw cErr || new Error('Failed to create chat');
-
-    const { error: pErr } = await supa.from('chat_participants').insert([
-      { chat_id: chat.id, address: x },
-      { chat_id: chat.id, address: y },
-    ]);
-    if (pErr) throw pErr;
-
-    return NextResponse.json({ ok: true, chat });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    const id = canonId(owner, peer)
+    return NextResponse.json({ ok: true, id, created: false }, { status: 200 })
+  } catch (err) {
+    return bad(500, String(err))
   }
 }
