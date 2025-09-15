@@ -1,7 +1,7 @@
-import { TopBar } from "@/components/TopBar";
+import { TopBar } from '@/components/TopBar';
 
-import React from "react"
-import SidebarClient from "@/components/SidebarClient"
+import React from 'react';
+import SidebarClient from '@/components/SidebarClient';
 
 // NOTE: This is the (app) segment layout. It renders a sidebar and a top bar.
 // Keep this as a Server Component; client components are fine as children.
@@ -14,9 +14,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarClient initialChats={[]} initialContacts={[]} />
       </aside>
 
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
     </div>
-  )
+  );
 }
