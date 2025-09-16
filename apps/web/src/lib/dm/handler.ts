@@ -13,20 +13,50 @@ export function canonId(a: string, b: string): string {
   return `dm:${A < B ? A : B}:${A < B ? B : A}`;
 }
 
-type SupabaseLike = {
-  from(table: string): {
-    select(cols?: string): {
-      eq(col: string, val: any): any;
-      order(col?: string, opts?: any): any;
-      limit(n: number): Promise<{ data: any[] | null; error: { message: string } | null }>;
-    };
-    insert(payload: any | any[]): {
-      select(cols?: string): {
-        limit(n: number): Promise<{ data: any[] | null; error: { message: string } | null }>;
-      };
-    };
-  };
+/** Rows we touch in tests and simple persistence */
+export type ChatRow = {
+  id: string;
+  type: string;
+  slug: string;
+  created_at?: string;
 };
+
+export type ChatMemberRow = {
+  chat_id: string;
+  address: string;
+  added_at?: string;
+};
+
+export type DataResult<T> = {
+  data: T[] | null;
+  error: { message: string } | null;
+};
+
+export interface TableSelectApi<T> {
+  eq(col: string, val: unknown): TableSelectApi<T>;
+  order(col?: string, opts?: { ascending?: boolean }): TableSelectApi<T>;
+  limit(n: number): Promise<DataResult<T>>;
+}
+
+export interface TableInsertApi<T> {
+  select(cols?: string): {
+    limit(n: number): Promise<DataResult<T>>;
+  };
+}
+
+export type SupabaseFrom<T> = {
+  select(cols?: string): TableSelectApi<T>;
+  insert(payload: Partial<T> | Array<Partial<T>>): TableInsertApi<T>;
+};
+
+export interface SupabaseLike {
+  from(table: 'chats'): SupabaseFrom<ChatRow>;
+  from(table: 'chat_members'): SupabaseFrom<ChatMemberRow>;
+}
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 async function upsertDmChat(
   supabase: SupabaseLike,
@@ -48,10 +78,11 @@ async function upsertDmChat(
   // 2) insert if not exists
   if (!chatId) {
     const { data: ins, error: insErr } = await supabase
-      .from('chats')
+      .from<never>('chats' as unknown as 'chats') // keep generic site happy; table is fixed
       .insert({ type: 'dm', slug })
       .select('id')
       .limit(1);
+
     if (insErr) throw new Error(insErr.message);
     chatId = ins?.[0]?.id ?? null;
     if (!chatId) throw new Error('Failed to create DM chat');
@@ -91,7 +122,7 @@ export async function handleDmPost(input: {
   ownerHeader?: string | null;
   body?: DmBody | null;
   supabase: SupabaseLike;
-}): Promise<{ status: number; payload: any }> {
+}): Promise<{ status: number; payload: unknown }> {
   const owner = (input.ownerHeader ?? '').trim();
   if (!isEvmAddress(owner)) {
     return {
@@ -119,10 +150,10 @@ export async function handleDmPost(input: {
       status: created ? 201 : 200,
       payload: { ok: true, id, chatId, created },
     };
-  } catch (e: any) {
+  } catch (e: unknown) {
     return {
       status: 500,
-      payload: { ok: false, error: e?.message ?? 'Failed to upsert DM chat' },
+      payload: { ok: false, error: errorMessage(e) },
     };
   }
 }

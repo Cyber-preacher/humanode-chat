@@ -1,7 +1,11 @@
 // apps/web/src/app/api/chats/dm/route.ts
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import handleDmPost, { type DmBody } from '@/lib/dm/handler';
+import { handleDmPost, type DmBody } from '@/lib/dm/handler';
+
+type HeadersModule = {
+  headers: () => Headers | Promise<Headers>;
+};
 
 async function readOwnerAddress(req: Request): Promise<string> {
   // Prefer request header; works in Next runtime & Jest
@@ -10,9 +14,10 @@ async function readOwnerAddress(req: Request): Promise<string> {
 
   // Optional: Next runtime headers() fallback (won't run in Jest)
   try {
-    const mod: any = await import('next/headers');
-    if (mod && typeof mod.headers === 'function') {
-      const maybe = mod.headers() as Headers | Promise<Headers>;
+    const modUnknown = (await import('next/headers')) as unknown;
+    const mod = modUnknown as Partial<HeadersModule>;
+    if (typeof mod.headers === 'function') {
+      const maybe = mod.headers();
       const h = maybe instanceof Promise ? await maybe : maybe;
       return (h.get('x-owner-address') ?? '').trim();
     }
