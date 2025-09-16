@@ -2,13 +2,13 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { handleDmPost, type DmBody, type SupabaseLike } from '@/lib/dm/handler';
+import { buildHasNickname } from '@/lib/profile/read';
 
 type HeadersModule = {
   headers: () => Headers | Promise<Headers>;
 };
 
 async function readOwnerAddress(req: Request): Promise<string> {
-  // Prefer request header; works in Next runtime & Jest
   const fromReq = (req.headers.get('x-owner-address') ?? '').trim();
   if (fromReq) return fromReq;
 
@@ -27,9 +27,6 @@ async function readOwnerAddress(req: Request): Promise<string> {
   return fromReq;
 }
 
-// TODO(router-first): replace with real resolver via router/registry.
-const hasNickname = async (): Promise<boolean> => true;
-
 export async function POST(req: Request) {
   try {
     let body: DmBody | null = null;
@@ -41,19 +38,33 @@ export async function POST(req: Request) {
 
     const owner = await readOwnerAddress(req);
 
-    // Cast heavy Supabase client to lightweight interface to avoid deep TS instantiation
+    // Cast the heavy Supabase client to our light interface to avoid deep TS instantiation
     const supabase = getSupabaseAdmin() as unknown as SupabaseLike;
 
     const requireNickname =
       String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
 
-    const result = await handleDmPost({
+    // Build args in two phases to avoid extra-property checks and keep types tight
+    const baseArgs: Parameters<typeof handleDmPost>[0] = {
       ownerHeader: owner,
       body,
       supabase,
-      requireNickname,
-      hasNickname,
-    });
+    };
+
+    let result;
+    if (requireNickname) {
+      const hasNickname = await buildHasNickname(); // null if we can’t build a checker
+      const args =
+        hasNickname != null
+          ? ({ ...baseArgs, requireNickname, hasNickname } as unknown as Parameters<
+              typeof handleDmPost
+            >[0])
+          : baseArgs; // no checker → handler won't enforce
+
+      result = await handleDmPost(args);
+    } else {
+      result = await handleDmPost(baseArgs);
+    }
 
     return NextResponse.json(result.payload, { status: result.status });
   } catch (err) {
