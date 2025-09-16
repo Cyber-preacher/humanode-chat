@@ -1,40 +1,62 @@
+// apps/web/src/app/api/chats/dm/route.ts
 import { NextResponse } from 'next/server';
-import { isAddress } from 'viem';
-import { headers } from 'next/headers';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { handleDmPost, type DmBody, type SupabaseLike } from '@/lib/dm/handler';
 
-type DmBody = { peerAddress?: string };
+type HeadersModule = {
+  headers: () => Headers | Promise<Headers>;
+};
 
-function canonId(a: string, b: string) {
-  const A = a.toLowerCase();
-  const B = b.toLowerCase();
-  return `dm:${A < B ? A : B}:${A < B ? B : A}`;
+async function readOwnerAddress(req: Request): Promise<string> {
+  // Prefer request header; works in Next runtime & Jest
+  const fromReq = (req.headers.get('x-owner-address') ?? '').trim();
+  if (fromReq) return fromReq;
+
+  // Optional: Next runtime headers() fallback (won't run in Jest)
+  try {
+    const modUnknown = (await import('next/headers')) as unknown;
+    const mod = modUnknown as Partial<HeadersModule>;
+    if (typeof mod.headers === 'function') {
+      const maybe = mod.headers();
+      const h = maybe instanceof Promise ? await maybe : maybe;
+      return (h.get('x-owner-address') ?? '').trim();
+    }
+  } catch {
+    // ignore
+  }
+  return fromReq;
 }
 
-function bad(status: number, error: string) {
-  return NextResponse.json({ ok: false, error }, { status });
-}
+// TODO(router-first): replace with real resolver via router/registry.
+const hasNickname = async (): Promise<boolean> => true;
 
 export async function POST(req: Request) {
   try {
-    // Compatible with different Next typings: may be immediate or Promise-like
-    const maybe = headers() as unknown as Headers | Promise<Headers>;
-    const h = maybe instanceof Promise ? await maybe : maybe;
-
-    const owner = (h.get('x-owner-address') ?? '').trim();
-    if (!isAddress(owner)) return bad(400, 'Missing or invalid x-owner-address');
-
-    let body: DmBody = {};
+    let body: DmBody | null = null;
     try {
       body = (await req.json()) as DmBody;
-    } catch {}
+    } catch {
+      // empty is fine; handler validates
+    }
 
-    const peer = String(body?.peerAddress ?? '').trim();
-    if (!isAddress(peer)) return bad(400, 'Invalid Ethereum address: peerAddress');
-    if (owner.toLowerCase() === peer.toLowerCase()) return bad(400, 'Cannot create DM with self');
+    const owner = await readOwnerAddress(req);
 
-    const id = canonId(owner, peer);
-    return NextResponse.json({ ok: true, id, created: false }, { status: 200 });
+    // Cast heavy Supabase client to lightweight interface to avoid deep TS instantiation
+    const supabase = getSupabaseAdmin() as unknown as SupabaseLike;
+
+    const requireNickname =
+      String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
+
+    const result = await handleDmPost({
+      ownerHeader: owner,
+      body,
+      supabase,
+      requireNickname,
+      hasNickname,
+    });
+
+    return NextResponse.json(result.payload, { status: result.status });
   } catch (err) {
-    return bad(500, String(err));
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
