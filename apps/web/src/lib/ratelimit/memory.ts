@@ -18,7 +18,6 @@ export type RateLimitResult = {
 };
 
 type Stamp = number; // epoch ms
-
 type BucketKey = `${string}:${string}`;
 
 function makeComposite(bucket: string, key: string): BucketKey {
