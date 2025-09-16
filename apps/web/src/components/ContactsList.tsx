@@ -1,8 +1,8 @@
-// apps/web/src/components/ContactsList.tsx
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addContact, deleteContact, listContacts, type Contact } from '@/lib/api/contacts';
+import StartDmButton from '@/components/dm/StartDmButton';
 
 type Props = { ownerAddress: string };
 
@@ -106,13 +106,21 @@ export default function ContactsList({ ownerAddress }: Props) {
                 <div className="font-mono text-sm truncate">{c.address}</div>
                 {c.alias && <div className="text-xs text-neutral-500 truncate">{c.alias}</div>}
               </div>
-              <button
-                onClick={() => onDelete(c.address)}
-                className="text-sm text-red-600 hover:underline"
-                aria-label={`Remove ${c.address}`}
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-3">
+                <StartDmButton
+                  peerAddress={c.address as `0x${string}`}
+                  className="px-3 py-2 text-sm rounded bg-black text-white disabled:opacity-50"
+                >
+                  Message
+                </StartDmButton>
+                <button
+                  onClick={() => onDelete(c.address)}
+                  className="text-sm text-red-600 hover:underline"
+                  aria-label={`Remove ${c.address}`}
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           ))}
         </ul>
