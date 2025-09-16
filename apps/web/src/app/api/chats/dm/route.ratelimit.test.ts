@@ -29,7 +29,7 @@ jest.mock('@/lib/dm/handler', () => {
 });
 
 import { POST } from './route';
-import { clearRateLimit } from '@/lib/ratelimit/memory';
+import { clearRateLimit } from '@/lib/ratelimit/index';
 
 function makeReq(owner: string, peer: string) {
   return new Request('http://local/api/chats/dm', {
