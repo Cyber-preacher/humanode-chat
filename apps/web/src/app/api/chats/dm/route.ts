@@ -1,40 +1,42 @@
+// apps/web/src/app/api/chats/dm/route.ts
 import { NextResponse } from 'next/server';
-import { isAddress } from 'viem';
-import { headers } from 'next/headers';
+import { getSupabaseAdmin } from '@/lib/supabase/server';
+import handleDmPost, { type DmBody } from '@/lib/dm/handler';
 
-type DmBody = { peerAddress?: string };
+async function readOwnerAddress(req: Request): Promise<string> {
+  // Prefer request header; works in Next runtime & Jest
+  const fromReq = (req.headers.get('x-owner-address') ?? '').trim();
+  if (fromReq) return fromReq;
 
-function canonId(a: string, b: string) {
-  const A = a.toLowerCase();
-  const B = b.toLowerCase();
-  return `dm:${A < B ? A : B}:${A < B ? B : A}`;
-}
-
-function bad(status: number, error: string) {
-  return NextResponse.json({ ok: false, error }, { status });
+  // Optional: Next runtime headers() fallback (won't run in Jest)
+  try {
+    const mod: any = await import('next/headers');
+    if (mod && typeof mod.headers === 'function') {
+      const maybe = mod.headers() as Headers | Promise<Headers>;
+      const h = maybe instanceof Promise ? await maybe : maybe;
+      return (h.get('x-owner-address') ?? '').trim();
+    }
+  } catch {
+    // ignore
+  }
+  return fromReq;
 }
 
 export async function POST(req: Request) {
   try {
-    // Compatible with different Next typings: may be immediate or Promise-like
-    const maybe = headers() as unknown as Headers | Promise<Headers>;
-    const h = maybe instanceof Promise ? await maybe : maybe;
-
-    const owner = (h.get('x-owner-address') ?? '').trim();
-    if (!isAddress(owner)) return bad(400, 'Missing or invalid x-owner-address');
-
-    let body: DmBody = {};
+    let body: DmBody | null = null;
     try {
       body = (await req.json()) as DmBody;
-    } catch {}
+    } catch {
+      // empty is fine; handler validates
+    }
 
-    const peer = String(body?.peerAddress ?? '').trim();
-    if (!isAddress(peer)) return bad(400, 'Invalid Ethereum address: peerAddress');
-    if (owner.toLowerCase() === peer.toLowerCase()) return bad(400, 'Cannot create DM with self');
+    const owner = await readOwnerAddress(req);
+    const supabase = getSupabaseAdmin();
+    const result = await handleDmPost({ ownerHeader: owner, body, supabase });
 
-    const id = canonId(owner, peer);
-    return NextResponse.json({ ok: true, id, created: false }, { status: 200 });
+    return NextResponse.json(result.payload, { status: result.status });
   } catch (err) {
-    return bad(500, String(err));
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
