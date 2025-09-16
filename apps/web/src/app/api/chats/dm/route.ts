@@ -1,7 +1,7 @@
 // apps/web/src/app/api/chats/dm/route.ts
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
-import { handleDmPost, type DmBody } from '@/lib/dm/handler';
+import { handleDmPost, type DmBody, type SupabaseLike } from '@/lib/dm/handler';
 
 type HeadersModule = {
   headers: () => Headers | Promise<Headers>;
@@ -27,6 +27,9 @@ async function readOwnerAddress(req: Request): Promise<string> {
   return fromReq;
 }
 
+// TODO(router-first): replace with real resolver via router/registry.
+const hasNickname = async (): Promise<boolean> => true;
+
 export async function POST(req: Request) {
   try {
     let body: DmBody | null = null;
@@ -37,8 +40,20 @@ export async function POST(req: Request) {
     }
 
     const owner = await readOwnerAddress(req);
-    const supabase = getSupabaseAdmin();
-    const result = await handleDmPost({ ownerHeader: owner, body, supabase });
+
+    // Cast heavy Supabase client to lightweight interface to avoid deep TS instantiation
+    const supabase = getSupabaseAdmin() as unknown as SupabaseLike;
+
+    const requireNickname =
+      String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
+
+    const result = await handleDmPost({
+      ownerHeader: owner,
+      body,
+      supabase,
+      requireNickname,
+      hasNickname,
+    });
 
     return NextResponse.json(result.payload, { status: result.status });
   } catch (err) {

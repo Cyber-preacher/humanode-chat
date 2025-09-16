@@ -78,7 +78,7 @@ async function upsertDmChat(
   // 2) insert if not exists
   if (!chatId) {
     const { data: ins, error: insErr } = await supabase
-      .from<never>('chats' as unknown as 'chats') // keep generic site happy; table is fixed
+      .from('chats')
       .insert({ type: 'dm', slug })
       .select('id')
       .limit(1);
@@ -113,15 +113,22 @@ async function upsertDmChat(
   return { chatId: chatId as string, created };
 }
 
+export interface NicknameChecker {
+  (address: string): boolean | Promise<boolean>;
+}
+
 /**
  * Pure testable handler.
- * Inputs: headers value (owner), parsed body, and a Supabase-like client.
+ * Inputs: headers value (owner), parsed body, a Supabase-like client,
+ * and optional nickname requirements/checker (for biomapper gate).
  * Output: { status, payload } — caller can wrap into NextResponse in route.ts.
  */
 export async function handleDmPost(input: {
   ownerHeader?: string | null;
   body?: DmBody | null;
   supabase: SupabaseLike;
+  requireNickname?: boolean; // ← optional gate flag
+  hasNickname?: NicknameChecker; // ← optional checker
 }): Promise<{ status: number; payload: unknown }> {
   const owner = (input.ownerHeader ?? '').trim();
   if (!isEvmAddress(owner)) {
@@ -140,6 +147,21 @@ export async function handleDmPost(input: {
   }
   if (owner.toLowerCase() === peer.toLowerCase()) {
     return { status: 400, payload: { ok: false, error: 'Cannot create DM with self' } };
+  }
+
+  // Optional nickname/biomapper gate
+  if (input.requireNickname) {
+    const check = input.hasNickname;
+    // If a checker is provided, enforce gate; otherwise allow (route/UI may handle enforcement).
+    if (typeof check === 'function') {
+      const [okOwner, okPeer] = await Promise.all([check(owner), check(peer)]);
+      if (!okOwner || !okPeer) {
+        return {
+          status: 403,
+          payload: { ok: false, error: 'Forbidden: nickname required' },
+        };
+      }
+    }
   }
 
   const id = canonId(owner, peer);
