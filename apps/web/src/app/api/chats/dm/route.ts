@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
 import { handleDmPost, type DmBody, type SupabaseLike } from '@/lib/dm/handler';
-import { buildHasNickname } from '@/lib/profile/read';
+import { touchRateLimit } from '@/lib/ratelimit/memory';
 
 type HeadersModule = {
   headers: () => Headers | Promise<Headers>;
@@ -38,13 +38,28 @@ export async function POST(req: Request) {
 
     const owner = await readOwnerAddress(req);
 
-    // Cast the heavy Supabase client to our light interface to avoid deep TS instantiation
+    // --- Rate limit: 5 create attempts per 30s per owner ---
+    const rl = touchRateLimit({
+      bucket: 'dm:create',
+      key: owner || 'anonymous',
+      limit: 5,
+      windowMs: 30_000,
+    });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: 'Too Many Requests' },
+        { status: 429, headers: { 'x-ratelimit-remaining': String(rl.remaining) } },
+      );
+    }
+    // -------------------------------------------------------
+
+    // Cast Supabase to lightweight interface to avoid deep TS instantiation
     const supabase = getSupabaseAdmin() as unknown as SupabaseLike;
 
     const requireNickname =
       String(process.env.NEXT_PUBLIC_REQUIRE_BIOMAPPED).toLowerCase() === 'true';
 
-    // Build args in two phases to avoid extra-property checks and keep types tight
+    // Build base args
     const baseArgs: Parameters<typeof handleDmPost>[0] = {
       ownerHeader: owner,
       body,
@@ -53,14 +68,21 @@ export async function POST(req: Request) {
 
     let result;
     if (requireNickname) {
-      const hasNickname = await buildHasNickname(); // null if we can’t build a checker
+      // LAZY-load and tolerate failure in test/SSR environments
+      let hasNickname: ((address: string) => Promise<boolean>) | null = null;
+      try {
+        const { buildHasNickname } = await import('@/lib/profile/read');
+        hasNickname = await buildHasNickname();
+      } catch {
+        // ignore — if we can’t build a checker, we won’t enforce server-side
+      }
+
       const args =
         hasNickname != null
           ? ({ ...baseArgs, requireNickname, hasNickname } as unknown as Parameters<
               typeof handleDmPost
             >[0])
           : baseArgs; // no checker → handler won't enforce
-
       result = await handleDmPost(args);
     } else {
       result = await handleDmPost(baseArgs);
